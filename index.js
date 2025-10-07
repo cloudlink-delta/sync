@@ -220,7 +220,7 @@
             if (!myVar.hasOwnProperty("bless")) {
                 const proxy = new Proxy(myVar, {
                     set(target, property, value) {
-                        if (property === "value") netvars.handle_var_update(myVar.id, classtype, value);
+                        if (property === "value") Syncs.handle_var_update(myVar.id, classtype, value);
                         return Reflect.set(...arguments);
                     },
                 });
@@ -263,7 +263,7 @@
                 let proxy = new Proxy(list, {
                     set(target, property, value) {
                         target[property] = value;
-                        netvars.handle_list_update(myList.id, classtype, target, property, value);
+                        Syncs.handle_list_update(myList.id, classtype, target, property, value);
                         return true;
                     },
                 });
@@ -664,7 +664,7 @@
 
 	class CloudLinkDelta_Sync {
 		constructor() {
-            this.netvars = new NetworkedVariables();
+            this.Syncs = new NetworkedVariables();
         }
 
 		getInfo() {
@@ -676,15 +676,21 @@
 				color1: "#0F7EBD",
 				blocks: [
                     {
-                        opcode: "doGlobalNetVar",
+                        opcode: "doGlobalSync",
                         blockType: Scratch.BlockType.COMMAND,
-                        text: Scratch.translate("[MODE] synchronization of [VAR] with everyone that has channel [CHANNEL]"),
+                        text: Scratch.translate("[MODE] synchronization of [TYPE] [VAR] with everyone that has channel [CHANNEL]"),
                         arguments: {
                             MODE: {
                                 menu: "mode",
                                 acceptReporters: true,
                                 type: Scratch.ArgumentType.BOOLEAN,
                                 defaultValue: "true",
+                            },
+                            TYPE: {
+                                menu: "type",
+                                acceptReporters: true,
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "variable",
                             },
                             VAR: {
                                 type: Scratch.ArgumentType.STRING,
@@ -697,10 +703,16 @@
                         },
                     },
                     {
-                        opcode: "checkGlobalNetVar",
+                        opcode: "checkGlobalSync",
                         blockType: Scratch.BlockType.BOOLEAN,
-                        text: Scratch.translate("is [VAR] synchronized with everyone that has channel [CHANNEL]?"),
+                        text: Scratch.translate("is [TYPE] [VAR] synchronized with everyone that has channel [CHANNEL]?"),
                         arguments: {
+                            TYPE: {
+                                menu: "type",
+                                acceptReporters: true,
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "variable",
+                            },
                             VAR: {
                                 type: Scratch.ArgumentType.STRING,
                                 defaultValue: "my variable",
@@ -712,10 +724,10 @@
                         }
                     },
                     {
-                        opcode: "doPrivateNetVar",
+                        opcode: "doPrivateSync",
                         blockType: Scratch.BlockType.COMMAND,
                         text: Scratch.translate(
-                            "[MODE] synchronization of [VAR] with player [PEER] in channel [CHANNEL]"
+                            "[MODE] synchronization of [TYPE] [VAR] with player [PEER] in channel [CHANNEL]"
                         ),
                         arguments: {
                             MODE: {
@@ -724,6 +736,12 @@
                                 type: Scratch.ArgumentType.BOOLEAN,
                                 defaultValue: "true",
                             },
+                            TYPE: {
+                                menu: "type",
+                                acceptReporters: true,
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "variable",
+                            },
                             VAR: {
                                 type: Scratch.ArgumentType.STRING,
                                 defaultValue: "my variable",
@@ -739,103 +757,19 @@
                         },
                     },
                     {
-                        opcode: "checkPrivateNetVar",
+                        opcode: "checkPrivateSync",
                         blockType: Scratch.BlockType.BOOLEAN,
-                        text: Scratch.translate("is [VAR] synchronized with with player [PEER] in channel [CHANNEL]?"),
+                        text: Scratch.translate("is [TYPE] [VAR] synchronized with with player [PEER] in channel [CHANNEL]?"),
                         arguments: {
+                            TYPE: {
+                                menu: "type",
+                                acceptReporters: true,
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "variable",
+                            },
                             VAR: {
                                 type: Scratch.ArgumentType.STRING,
                                 defaultValue: "my variable",
-                            },
-                            PEER: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "B",
-                            },
-                            CHANNEL: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "default",
-                            },
-                        }
-                    },
-                    {
-                        opcode: "doGlobalNetList",
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: Scratch.translate("[MODE] synchronization of [LIST] with everyone that has channel [CHANNEL]"),
-                        arguments: {
-                            MODE: {
-                                menu: "mode",
-                                acceptReporters: true,
-                                type: Scratch.ArgumentType.BOOLEAN,
-                                defaultValue: "true",
-                            },
-                            LIST: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "my list",
-                            },
-                            CHANNEL: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "default",
-                            },
-                            ID: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "netid",
-                            },
-                        },
-                    },
-                    {
-                        opcode: "checkGlobalNetList",
-                        blockType: Scratch.BlockType.BOOLEAN,
-                        text: Scratch.translate("is [LIST] synchronized with everyone that has channel [CHANNEL]?"),
-                        arguments: {
-                            LIST: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "my list",
-                            },
-                            CHANNEL: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "default",
-                            },
-                        }
-                    },
-                    {
-                        opcode: "doPrivateNetList",
-                        blockType: Scratch.BlockType.COMMAND,
-                        text: Scratch.translate(
-                            "[MODE] synchronization of [LIST] with player [PEER] using channel [CHANNEL]"
-                        ),
-                        arguments: {
-                            MODE: {
-                                menu: "mode",
-                                acceptReporters: true,
-                                type: Scratch.ArgumentType.BOOLEAN,
-                                defaultValue: "true",
-                            },
-                            LIST: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "my list",
-                            },
-                            PEER: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "B",
-                            },
-                            CHANNEL: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "default",
-                            },
-                            ID: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "netid",
-                            },
-                        },
-                    },
-                    {
-                        opcode: "checkPrivateNetList",
-                        blockType: Scratch.BlockType.BOOLEAN,
-                        text: Scratch.translate("is [LIST] synchronized with player [PEER] using channel [CHANNEL]?"),
-                        arguments: {
-                            LIST: {
-                                type: Scratch.ArgumentType.STRING,
-                                defaultValue: "my list",
                             },
                             PEER: {
                                 type: Scratch.ArgumentType.STRING,
@@ -855,18 +789,20 @@
                             { text: Scratch.translate("enable"), value: "true" },
                         ]
                     },
+                    type: {
+                        items: [
+                            { text: Scratch.translate("variable"), value: "variable" },
+                            { text: Scratch.translate("list"), value: "list" },
+                        ]
+                    },
                 },
 			};
 		}
 
-        doGlobalNetVar({MODE, VAR, CHANNEL}) {}
-        checkGlobalNetVar({VAR, CHANNEL}) {}
-        doPrivateNetVar({MODE, VAR, PEER, CHANNEL}) {}
-        checkPrivateNetVar({VAR, PEER, CHANNEL}) {}
-        doGlobalNetList({MODE, LIST, CHANNEL}) {}
-        checkGlobalNetList({LIST, CHANNEL}) {}
-        doPrivateNetList({MODE, LIST, PEER, CHANNEL}) {}
-        checkPrivateNetList({LIST, PEER, CHANNEL}) {}
+        doGlobalSync({TYPE, MODE, VAR, CHANNEL}) {}
+        checkGlobalSync({TYPE, VAR, CHANNEL}) {}
+        doPrivateSync({TYPE, MODE, VAR, PEER, CHANNEL}) {}
+        checkPrivateSync({TYPE, VAR, PEER, CHANNEL}) {}
 	}
 
 	// Register the plugin
