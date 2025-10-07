@@ -757,12 +757,102 @@
                             },
                         }
                     },
+                    {
+                        opcode: "doGlobalNetList",
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: Scratch.translate("[MODE] synchronization of [LIST] with everyone that has channel [CHANNEL]"),
+                        arguments: {
+                            MODE: {
+                                menu: "mode",
+                                acceptReporters: true,
+                                type: Scratch.ArgumentType.BOOLEAN,
+                                defaultValue: "true",
+                            },
+                            LIST: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "my list",
+                            },
+                            CHANNEL: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "default",
+                            },
+                            ID: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "netid",
+                            },
+                        },
+                    },
+                    {
+                        opcode: "checkGlobalNetList",
+                        blockType: Scratch.BlockType.BOOLEAN,
+                        text: Scratch.translate("is [LIST] synchronized with everyone that has channel [CHANNEL]?"),
+                        arguments: {
+                            LIST: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "my list",
+                            },
+                            CHANNEL: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "default",
+                            },
+                        }
+                    },
+                    {
+                        opcode: "doPrivateNetList",
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: Scratch.translate(
+                            "[MODE] synchronization of [LIST] with player [PEER] using channel [CHANNEL]"
+                        ),
+                        arguments: {
+                            MODE: {
+                                menu: "mode",
+                                acceptReporters: true,
+                                type: Scratch.ArgumentType.BOOLEAN,
+                                defaultValue: "true",
+                            },
+                            LIST: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "my list",
+                            },
+                            PEER: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "B",
+                            },
+                            CHANNEL: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "default",
+                            },
+                            ID: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "netid",
+                            },
+                        },
+                    },
+                    {
+                        opcode: "checkPrivateNetList",
+                        blockType: Scratch.BlockType.BOOLEAN,
+                        text: Scratch.translate("is [LIST] synchronized with player [PEER] using channel [CHANNEL]?"),
+                        arguments: {
+                            LIST: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "my list",
+                            },
+                            PEER: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "B",
+                            },
+                            CHANNEL: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "default",
+                            },
+                        }
+                    },
                 ],
 				menus: {
                     mode: {
                         items: [
-                            { text: Scratch.translate("Disable"), value: "false" },
-                            { text: Scratch.translate("Enable"), value: "true" },
+                            { text: Scratch.translate("disable"), value: "false" },
+                            { text: Scratch.translate("enable"), value: "true" },
                         ]
                     },
                 },
