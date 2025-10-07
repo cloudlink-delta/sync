@@ -674,8 +674,98 @@
 				menuIconURI: menuIcon,
 				blockIconURI: blockIcon,
 				color1: "#0F7EBD",
-				blocks: [],
-				menus: {},
+				blocks: [
+                    {
+                        opcode: "doGlobalNetVar",
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: Scratch.translate("[MODE] synchronization of [VAR] with everyone that has channel [CHANNEL]"),
+                        arguments: {
+                            MODE: {
+                                menu: "mode",
+                                acceptReporters: true,
+                                type: Scratch.ArgumentType.BOOLEAN,
+                                defaultValue: "true",
+                            },
+                            VAR: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "my variable",
+                            },
+                            CHANNEL: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "default",
+                            },
+                        },
+                    },
+                    {
+                        opcode: "checkGlobalNetVar",
+                        blockType: Scratch.BlockType.BOOLEAN,
+                        text: Scratch.translate("is [VAR] synchronized with everyone that has channel [CHANNEL]?"),
+                        arguments: {
+                            VAR: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "my variable",
+                            },
+                            CHANNEL: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "default",
+                            },
+                        }
+                    },
+                    {
+                        opcode: "doPrivateNetVar",
+                        blockType: Scratch.BlockType.COMMAND,
+                        text: Scratch.translate(
+                            "[MODE] synchronization of [VAR] with player [PEER] in channel [CHANNEL]"
+                        ),
+                        arguments: {
+                            MODE: {
+                                menu: "mode",
+                                acceptReporters: true,
+                                type: Scratch.ArgumentType.BOOLEAN,
+                                defaultValue: "true",
+                            },
+                            VAR: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "my variable",
+                            },
+                            PEER: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "B",
+                            },
+                            CHANNEL: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "default",
+                            },
+                        },
+                    },
+                    {
+                        opcode: "checkPrivateNetVar",
+                        blockType: Scratch.BlockType.BOOLEAN,
+                        text: Scratch.translate("is [VAR] synchronized with with player [PEER] in channel [CHANNEL]?"),
+                        arguments: {
+                            VAR: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "my variable",
+                            },
+                            PEER: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "B",
+                            },
+                            CHANNEL: {
+                                type: Scratch.ArgumentType.STRING,
+                                defaultValue: "default",
+                            },
+                        }
+                    },
+                ],
+				menus: {
+                    mode: {
+                        items: [
+                            { text: Scratch.translate("Disable"), value: "false" },
+                            { text: Scratch.translate("Enable"), value: "true" },
+                        ]
+                    },
+                },
 			};
 		}
 	}
