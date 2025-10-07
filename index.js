@@ -858,6 +858,15 @@
                 },
 			};
 		}
+
+        doGlobalNetVar({MODE, VAR, CHANNEL}) {}
+        checkGlobalNetVar({VAR, CHANNEL}) {}
+        doPrivateNetVar({MODE, VAR, PEER, CHANNEL}) {}
+        checkPrivateNetVar({VAR, PEER, CHANNEL}) {}
+        doGlobalNetList({MODE, LIST, CHANNEL}) {}
+        checkGlobalNetList({LIST, CHANNEL}) {}
+        doPrivateNetList({MODE, LIST, PEER, CHANNEL}) {}
+        checkPrivateNetList({LIST, PEER, CHANNEL}) {}
 	}
 
 	// Register the plugin
