@@ -676,6 +676,10 @@
 				color1: "#0F7EBD",
 				blocks: [
                     {
+						blockType: Scratch.BlockType.LABEL,
+						text: "Global synchronization",
+					},
+                    {
                         opcode: "doGlobalSync",
                         blockType: Scratch.BlockType.COMMAND,
                         text: Scratch.translate("[MODE] synchronization of [TYPE] [VAR] with everyone that has channel [CHANNEL]"),
@@ -723,6 +727,10 @@
                             },
                         }
                     },
+                    {
+						blockType: Scratch.BlockType.LABEL,
+						text: "Private synchronization",
+					},
                     {
                         opcode: "doPrivateSync",
                         blockType: Scratch.BlockType.COMMAND,
