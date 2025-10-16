@@ -817,5 +817,11 @@
 	const Sync = new CloudLinkDelta_Sync();
 	Scratch.extensions.register(Sync);
 	Scratch.vm.runtime.ext_cldelta_sync = Sync;
+
+    // Register plugin with core
+	if (!core.plugins.includes("sync")) {
+		core.plugins.push("sync");
+	}
+
 	console.log("CLΔ Sync plugin loaded.");
 })(Scratch);
