@@ -695,7 +695,7 @@
 
   class CloudLinkDelta_Sync {
     constructor () {
-      this.Syncs = new NetworkedVariables()
+      this.netvars = new NetworkedVariables()
       this.core
     }
 
@@ -707,7 +707,7 @@
     register (core) {
       // Implement any additional hooks
       this.core = core
-      this.Syncs.core = core
+      this.netvars.core = core
 
       if (!core.plugins.includes('sync')) {
         core.plugins.push('sync')
@@ -862,16 +862,16 @@
     }
 
     doGlobalSync ({ TYPE, MODE, VAR, CHANNEL }) {
-        if (!this.core) return
+      if (!this.core) return
     }
     checkGlobalSync ({ TYPE, VAR, CHANNEL }) {
-        if (!this.core) return
+      if (!this.core) return
     }
     doPrivateSync ({ TYPE, MODE, VAR, PEER, CHANNEL }) {
-        if (!this.core) return
+      if (!this.core) return
     }
     checkPrivateSync ({ TYPE, VAR, PEER, CHANNEL }) {
-        if (!this.core) return
+      if (!this.core) return
     }
   }
 
