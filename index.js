@@ -99,41 +99,6 @@
       setInterval(() => this.processUpdateQueue(), 1000 / 30)
     }
 
-    processUpdateQueue () {
-      if (this.updateQueue.size === 0) return
-
-      // In a real implementation, we'd likely group these into
-      // a single network message. For now, we'll just call the callbacks.
-      this.updateQueue.forEach((update, key) => {
-        const { id, classtype, value, type } = update
-
-        if (type === 'var') {
-          const events = this.varEvents[classtype]?.get(id)
-          if (events) {
-            this.core.callbacks.call(events.on, value)
-          }
-        } else if (type === 'list') {
-          // ... handle list updates similarly
-          const events = this.listEvents[classtype]?.get(id)
-          // Call the specific list event based on the method
-          if (events && update.method) {
-            switch (update.method) {
-              case 'set':
-                this.core.callbacks.call(events.set, {
-                  property: update.property,
-                  value: update.value
-                })
-                break
-              // ... other cases
-            }
-          }
-        }
-      })
-
-      // Clear the queue after processing
-      this.updateQueue.clear()
-    }
-
     /**
      * Updates the value of a proxy variable while masking the event trigger.
      * Used to update the value of a networked variable without triggering events.
