@@ -62,6 +62,11 @@
     return
   }
 
+  // Initialize the plugin loader
+  if (!Scratch.vm.runtime.ext_cldelta_pluginloader) {
+    Scratch.vm.runtime.ext_cldelta_pluginloader = new Array()
+  }
+
   /*
         Networked Variables Helper Class
 
