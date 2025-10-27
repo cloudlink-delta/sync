@@ -101,7 +101,6 @@
       }
       this.updateQueue = new Map()
       this.core
-      setInterval(() => this.processUpdateQueue(), 1000 / 30)
     }
 
     /**
