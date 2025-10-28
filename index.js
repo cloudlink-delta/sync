@@ -820,8 +820,8 @@
             'doBroadcast',
             '[MODE] broadcast of [TYPE] [VAR] in channel [CHANNEL]',
             {
-              MODE: args.number('1', { menu: 'mode' }),
-              TYPE: args.number('0', { menu: 'type' }),
+              MODE: args.string('enable', { menu: 'mode' }),
+              TYPE: args.string('variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default')
             }
@@ -830,7 +830,7 @@
             'checkBroadcast',
             'is [TYPE] [VAR] broadcasting in channel [CHANNEL]?',
             {
-              TYPE: args.number('0', { menu: 'type' }),
+              TYPE: args.string('variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default')
             }
@@ -843,8 +843,8 @@
             'doMulticast',
             '[MODE] multicast of [TYPE] [VAR] in channel [CHANNEL] with peers in list [LIST]',
             {
-              MODE: args.number('1', { menu: 'mode' }),
-              TYPE: args.number('0', { menu: 'type' }),
+              MODE: args.string('enable', { menu: 'mode' }),
+              TYPE: args.string('variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
               LIST: args.string('my list'),
@@ -854,7 +854,7 @@
             'checkMulticast',
             'is [TYPE] [VAR] multicasting to peers in list [LIST] in channel [CHANNEL]?',
             {
-              TYPE: args.number('0', { menu: 'type' }),
+              TYPE: args.string('variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
               LIST: args.string('my list'),
@@ -868,8 +868,8 @@
             'doUnicast',
             '[MODE] unicast of [TYPE] [VAR] with [PEER] in channel [CHANNEL]',
             {
-              MODE: args.number('1', { menu: 'mode' }),
-              TYPE: args.number('0', { menu: 'type' }),
+              MODE: args.string('enable', { menu: 'mode' }),
+              TYPE: args.string('variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
               PEER: args.string('B')
@@ -879,7 +879,7 @@
             'checkUnicast',
             'is [TYPE] [VAR] unicasting with [PEER] in channel [CHANNEL]?',
             {
-              TYPE: args.number('0', { menu: 'type' }),
+              TYPE: args.string('variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
               PEER: args.string('B')
@@ -889,26 +889,14 @@
         menus: {
           mode: {
             items: [
-              {
-                text: Scratch.translate('disable'),
-                value: '0'
-              },
-              {
-                text: Scratch.translate('enable'),
-                value: '1'
-              }
+              Scratch.translate('disable'),
+              Scratch.translate('enable'),
             ]
           },
           type: {
             items: [
-              {
-                text: Scratch.translate('variable'),
-                value: '0'
-              },
-              {
-                text: Scratch.translate('list'),
-                value: '1'
-              }
+              Scratch.translate('variable'),
+              Scratch.translate('list'),
             ]
           }
         }
