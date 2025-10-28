@@ -68,6 +68,93 @@
   }
 
   /*
+		Block utilities for creating blocks with less code.
+		Based on Rotur.js by Mistium
+		https://extensions.mistium.com/featured/Rotur.js
+
+		MPL-2.0
+		This Source Code is subject to the terms of the Mozilla Public License, v2.0,
+		If a copy of the MPL was not distributed with this file,
+		Then you can obtain one at https://mozilla.org/MPL/2.0/
+	*/
+  // Defines a set of block types
+  const opcodes = {
+    conditional: (opcode, text, options = {}) => ({
+      opcode,
+      text: text.map(v => Scratch.translate(v)),
+      blockType: Scratch.BlockType.CONDITIONAL,
+      branchCount: text.length - 1,
+      ...options
+    }),
+
+    reporter: (opcode, text, args = {}, options = {}) => ({
+      opcode,
+      blockType: Scratch.BlockType.REPORTER,
+      text: Scratch.translate(text),
+      arguments: args,
+      ...options
+    }),
+
+    command: (opcode, text, args = {}, options = {}) => ({
+      opcode,
+      blockType: Scratch.BlockType.COMMAND,
+      text: Scratch.translate(text),
+      arguments: args,
+      ...options
+    }),
+
+    boolean: (opcode, text, args = {}, options = {}) => ({
+      opcode,
+      blockType: Scratch.BlockType.BOOLEAN,
+      text: Scratch.translate(text),
+      arguments: args,
+      ...options
+    }),
+
+    event: (opcode, text, options = {}) => ({
+      opcode,
+      blockType: Scratch.BlockType.EVENT,
+      text: Scratch.translate(text),
+      isEdgeActivated: false,
+      ...options
+    }),
+
+    button: (text, func, options = {}) => ({
+      blockType: Scratch.BlockType.BUTTON,
+      text: Scratch.translate(text),
+      func,
+      ...options
+    }),
+
+    label: text => ({
+      blockType: Scratch.BlockType.LABEL,
+      text: Scratch.translate(text)
+    }),
+
+    separator: () => '---'
+  }
+
+  const args = {
+    string: (value, options = {}) => ({
+      type: Scratch.ArgumentType.STRING,
+      defaultValue: value,
+      ...options
+    }),
+
+    number: (value, options = {}) => ({
+      type: Scratch.ArgumentType.NUMBER,
+      defaultValue: value,
+      ...options
+    }),
+
+    boolean: (value, options = {}) => ({
+      type: Scratch.ArgumentType.BOOLEAN,
+      defaultValue: value,
+      ...options
+    })
+  }
+
+  /*
         Networked Variables Helper Class
 
         MIT License
@@ -727,154 +814,123 @@
         blockIconURI: blockIcon,
         color1: '#0F7EBD',
         blocks: [
-          {
-            blockType: Scratch.BlockType.LABEL,
-            text: 'Global synchronization'
-          },
-          {
-            opcode: 'doGlobalSync',
-            blockType: Scratch.BlockType.COMMAND,
-            text: Scratch.translate(
-              '[MODE] synchronization of [TYPE] [VAR] with everyone that has channel [CHANNEL]'
-            ),
-            arguments: {
-              MODE: {
-                menu: 'mode',
-                acceptReporters: true,
-                type: Scratch.ArgumentType.BOOLEAN,
-                defaultValue: 'true'
-              },
-              TYPE: {
-                menu: 'type',
-                acceptReporters: true,
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'variable'
-              },
-              VAR: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'my variable'
-              },
-              CHANNEL: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'default'
-              }
+          // Broadcast
+          opcodes.label('Broadcast'),
+          opcodes.command(
+            'doBroadcast',
+            '[MODE] broadcast of [TYPE] [VAR] in channel [CHANNEL]',
+            {
+              MODE: args.number('1', { menu: 'mode' }),
+              TYPE: args.number('0', { menu: 'type' }),
+              VAR: args.string('my variable'),
+              CHANNEL: args.string('default')
             }
-          },
-          {
-            opcode: 'checkGlobalSync',
-            blockType: Scratch.BlockType.BOOLEAN,
-            text: Scratch.translate(
-              'is [TYPE] [VAR] synchronized with everyone that has channel [CHANNEL]?'
-            ),
-            arguments: {
-              TYPE: {
-                menu: 'type',
-                acceptReporters: true,
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'variable'
-              },
-              VAR: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'my variable'
-              },
-              CHANNEL: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'default'
-              }
+          ),
+          opcodes.boolean(
+            'checkBroadcast',
+            'is [TYPE] [VAR] broadcasting in channel [CHANNEL]?',
+            {
+              TYPE: args.number('0', { menu: 'type' }),
+              VAR: args.string('my variable'),
+              CHANNEL: args.string('default')
             }
-          },
-          {
-            blockType: Scratch.BlockType.LABEL,
-            text: 'Private synchronization'
-          },
-          {
-            opcode: 'doPrivateSync',
-            blockType: Scratch.BlockType.COMMAND,
-            text: Scratch.translate(
-              '[MODE] synchronization of [TYPE] [VAR] with player [PEER] in channel [CHANNEL]'
-            ),
-            arguments: {
-              MODE: {
-                menu: 'mode',
-                acceptReporters: true,
-                type: Scratch.ArgumentType.BOOLEAN,
-                defaultValue: 'true'
-              },
-              TYPE: {
-                menu: 'type',
-                acceptReporters: true,
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'variable'
-              },
-              VAR: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'my variable'
-              },
-              PEER: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'B'
-              },
-              CHANNEL: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'default'
-              }
+          ),
+          opcodes.separator(),
+
+          // Multicast
+          opcodes.label('Multicast'),
+          opcodes.command(
+            'doMulticast',
+            '[MODE] multicast of [TYPE] [VAR] in channel [CHANNEL] with peers in list [LIST]',
+            {
+              MODE: args.number('1', { menu: 'mode' }),
+              TYPE: args.number('0', { menu: 'type' }),
+              VAR: args.string('my variable'),
+              CHANNEL: args.string('default'),
+              LIST: args.string('my list'),
             }
-          },
-          {
-            opcode: 'checkPrivateSync',
-            blockType: Scratch.BlockType.BOOLEAN,
-            text: Scratch.translate(
-              'is [TYPE] [VAR] synchronized with with player [PEER] in channel [CHANNEL]?'
-            ),
-            arguments: {
-              TYPE: {
-                menu: 'type',
-                acceptReporters: true,
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'variable'
-              },
-              VAR: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'my variable'
-              },
-              PEER: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'B'
-              },
-              CHANNEL: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'default'
-              }
+          ),
+          opcodes.boolean(
+            'checkMulticast',
+            'is [TYPE] [VAR] multicasting to peers in list [LIST] in channel [CHANNEL]?',
+            {
+              TYPE: args.number('0', { menu: 'type' }),
+              VAR: args.string('my variable'),
+              CHANNEL: args.string('default'),
+              LIST: args.string('my list'),
             }
-          }
+          ),
+          opcodes.separator(),
+
+          // Unicast
+          opcodes.label('Unicast'),
+          opcodes.command(
+            'doUnicast',
+            '[MODE] unicast of [TYPE] [VAR] with [PEER] in channel [CHANNEL]',
+            {
+              MODE: args.number('1', { menu: 'mode' }),
+              TYPE: args.number('0', { menu: 'type' }),
+              VAR: args.string('my variable'),
+              CHANNEL: args.string('default'),
+              PEER: args.string('B')
+            }
+          ),
+          opcodes.boolean(
+            'checkUnicast',
+            'is [TYPE] [VAR] unicasting with [PEER] in channel [CHANNEL]?',
+            {
+              TYPE: args.number('0', { menu: 'type' }),
+              VAR: args.string('my variable'),
+              CHANNEL: args.string('default'),
+              PEER: args.string('B')
+            }
+          )
         ],
         menus: {
           mode: {
             items: [
-              { text: Scratch.translate('disable'), value: 'false' },
-              { text: Scratch.translate('enable'), value: 'true' }
+              {
+                text: Scratch.translate('disable'),
+                value: '0'
+              },
+              {
+                text: Scratch.translate('enable'),
+                value: '1'
+              }
             ]
           },
           type: {
             items: [
-              { text: Scratch.translate('variable'), value: 'variable' },
-              { text: Scratch.translate('list'), value: 'list' }
+              {
+                text: Scratch.translate('variable'),
+                value: '0'
+              },
+              {
+                text: Scratch.translate('list'),
+                value: '1'
+              }
             ]
           }
         }
       }
     }
 
-    doGlobalSync ({ TYPE, MODE, VAR, CHANNEL }) {
+    doBroadcast ({ TYPE, MODE, VAR, CHANNEL }) {
       if (!this.core) return
     }
-    checkGlobalSync ({ TYPE, VAR, CHANNEL }) {
+    checkBroadcast ({ TYPE, VAR, CHANNEL }) {
       if (!this.core) return
     }
-    doPrivateSync ({ TYPE, MODE, VAR, PEER, CHANNEL }) {
+    doMulticast({ TYPE, MODE, VAR, CHANNEL, LIST }) {
       if (!this.core) return
     }
-    checkPrivateSync ({ TYPE, VAR, PEER, CHANNEL }) {
+    checkMulticast ({ TYPE, VAR, CHANNEL, LIST }) {
+      if (!this.core) return
+    }
+    doUnicast ({ TYPE, MODE, VAR, PEER, CHANNEL }) {
+      if (!this.core) return
+    }
+    checkUnicast ({ TYPE, VAR, PEER, CHANNEL }) {
       if (!this.core) return
     }
   }
