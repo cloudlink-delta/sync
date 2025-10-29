@@ -38,7 +38,7 @@
   const menuIcon =
     'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzczIiBoZWlnaHQ9IjM3MyIgdmlld0JveD0iMCAwIDM3MyAzNzMiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxjaXJjbGUgY3g9IjE4Ni41IiBjeT0iMTg2LjUiIHI9IjE4Ni41IiBmaWxsPSIjMEY3RUJEIi8+CjxwYXRoIGQ9Ik0xODYuODggNjFDMjI1LjgyOSA2MS4wMDAyIDI1Ny43ODYgOTEuMTA4NCAyNjAuOTg3IDEyOS40NDFIMjY4LjM5MUMzMDkuNDY2IDEyOS40NDEgMzQyLjc1OSAxNjIuOTIyIDM0Mi43NTkgMjA0LjIyMUMzNDIuNzU5IDI0NS41MiAzMDkuNDY2IDI3OSAyNjguMzkxIDI3OUgxMDUuMzY4QzY0LjI5MzQgMjc5IDMxIDI0NS41MiAzMSAyMDQuMjIxQzMxLjAwMDEgMTYyLjkyMiA2NC4yOTM1IDEyOS40NDIgMTA1LjM2OCAxMjkuNDQxSDExMi43NzJDMTE1Ljk3MyA5MS4xMDgyIDE0Ny45MzEgNjEgMTg2Ljg4IDYxWk0xODYuODggNzFDMTUzLjIyMSA3MSAxMjUuNTE0IDk3LjAzMzUgMTIyLjczNyAxMzAuMjc0TDEyMS45NzIgMTM5LjQ0MUgxMDUuMzY4QzY5Ljg2ODQgMTM5LjQ0MiA0MS4wMDAxIDE2OC4zOTIgNDEgMjA0LjIyMUM0MSAyNDAuMDQ5IDY5Ljg2ODMgMjY5IDEwNS4zNjggMjY5SDI2OC4zOTFDMzAzLjg5MSAyNjkgMzMyLjc1OSAyNDAuMDQ5IDMzMi43NTkgMjA0LjIyMUMzMzIuNzU5IDE2OC4zOTIgMzAzLjg5MSAxMzkuNDQxIDI2OC4zOTEgMTM5LjQ0MUgyNTEuNzg4TDI1MS4wMjMgMTMwLjI3NEMyNDguMjQ2IDk3LjAzMzcgMjIwLjUzOSA3MS4wMDAyIDE4Ni44OCA3MVoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik0xNDAuNSAyNDFWMjMzLjVMMTgwLjg1IDEzMy40NUgxOTNMMjMzLjIgMjMzLjVWMjQxSDE0MC41Wk0xNTUuOTUgMjI4Ljg1SDIxNy42TDE5Mi41NSAxNjMuNDVDMTkyLjI1IDE2Mi42NSAxOTEuNyAxNjEuMiAxOTAuOSAxNTkuMUMxOTAuMSAxNTcgMTg5LjMgMTU0Ljg1IDE4OC41IDE1Mi42NUMxODcuOCAxNTAuMzUgMTg3LjI1IDE0OC42IDE4Ni44NSAxNDcuNEMxODYuMzUgMTQ5LjQgMTg1Ljc1IDE1MS40NSAxODUuMDUgMTUzLjU1QzE4NC40NSAxNTUuNTUgMTgzLjggMTU3LjQgMTgzLjEgMTU5LjFDMTgyLjUgMTYwLjggMTgyIDE2Mi4yNSAxODEuNiAxNjMuNDVMMTU1Ljk1IDIyOC44NVoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPgo='
 
-  // Require the plugin to be unsandboxed
+  // --- Dependency Checks ---
   if (!Scratch.extensions.unsandboxed) {
     alert(
       'The CloudLink Delta Sync plugin must be loaded in an unsandboxed environment.'
@@ -67,8 +67,7 @@
     Scratch.vm.runtime.ext_cldelta_pluginloader = new Array()
   }
 
-  /*
-		Block utilities for creating blocks with less code.
+  /* --- Block Utilities ---
 		Based on Rotur.js by Mistium
 		https://extensions.mistium.com/featured/Rotur.js
 
@@ -77,7 +76,6 @@
 		If a copy of the MPL was not distributed with this file,
 		Then you can obtain one at https://mozilla.org/MPL/2.0/
 	*/
-  // Defines a set of block types
   const opcodes = {
     conditional: (opcode, text, options = {}) => ({
       opcode,
@@ -133,7 +131,6 @@
 
     separator: () => '---'
   }
-
   const args = {
     string: (value, options = {}) => ({
       type: Scratch.ArgumentType.STRING,
@@ -154,655 +151,555 @@
     })
   }
 
+  // --- Getters/Setters ---
+  function getTarget (target_id, name) {
+    const target = vm.runtime.getTargetById(target_id)
+    if (!target) return undefined
+    const variable = Object.values(target.variables).find(v => v.name === name)
+    return variable
+  }
+  function setVariableTarget (target_id, target_variable, value) {
+    const target = vm.runtime.getTargetById(target_id)
+    if (target && target.variables[target_variable.id]) {
+      target.variables[target_variable.id] = value
+    }
+  }
+  function setListValueTarget (target_id, target_list, value) {
+    const target = vm.runtime.getTargetById(target_id)
+    if (target && target.variables[target_list.id]) {
+      target.variables[target_list.id].value = value
+    }
+  }
+
   /*
-        Networked Variables Helper Class
+    Networked Variables Helper Class
 
-        MIT License
+    MIT License
 
-        Copyright (C) 2023 Mike Renaker "MikeDEV".
-    */
+    Copyright (C) 2025 Mike J. Renaker "MikeDEV".
+  */
   class NetworkedVariables {
     /**
-     * Initializes a new instance of the NetworkedVariables class.
-     * Sets up the internal data structures to track variable and list events.
-     *
-     * - blessedListBackup: A map to store the original targets and clone IDs of blessed lists.
-     * - listEvents: A map to manage events related to lists.
-     * - varEvents: A map to manage events related to variables.
+     * @param {number} [retainedFrames=60] - The number of event frames to keep in memory.
+     * @param {number} [updatesPerSecond=10] - The number of batches to process per second.
      */
-    constructor () {
-      this.networkUpdateTracker = {
-        global: new Map(),
-        local: new Map(),
-        clone: new Map()
-      }
-      this.varEvents = {
-        global: new Map(),
-        local: new Map(),
-        clone: new Map()
-      }
-      this.listEvents = {
-        global: new Map(),
-        local: new Map(),
-        clone: new Map()
-      }
-      this.updateQueue = new Map()
-      this.core
+    constructor (retainedFrames = 60, updatesPerSecond = 10) {
+      this.onTransmit = null
+      this.tracker = new Map()
+      this.tagMap = new Map()
+      this.eventStack = [[]]
+      this.retainedFrames = retainedFrames
+      this.lastFrameTime = Date.now()
+      this.batchInterval = 1000 / updatesPerSecond
+      this.timeAccumulator = 0
+      this.lastProcessedFrameTime = Date.now()
+      this.idleTimeout = 1000 // 1 second
+      this.lastCheckIdle = false
     }
 
-    /**
-     * Updates the value of a proxy variable while masking the event trigger.
-     * Used to update the value of a networked variable without triggering events.
-     * @param {Object} metadata - Metadata containing information about the proxy to access. Generated by the makeNetworkedVariable function.
-     * @param {any} newvalue - The new value to assign to the proxy without event triggering.
-     */
-    updateProxyVariable (metadata, newvalue) {
-      /* 
-            metadata = {
-                id: string,
-                class: "global" | "local" | "clone",
-                target: 0 | string
-            }
-            */
-
-      if (!metadata) return
-      let proxy
-
-      switch (metadata.class) {
-        case 'global':
-          proxy = vm.runtime.targets[metadata.target].variables[metadata.id]
-          break
-        case 'local':
-        case 'clone':
-          proxy = vm.runtime.getTargetById(metadata.target).variables[
-            metadata.id
-          ]
-          break
-        default:
-          throw new Error('Unhandled class type.')
+    // --- Frame Stack & Event Pushers ---
+    getCurrentFrame () {
+      return this.eventStack[this.eventStack.length - 1]
+    }
+    pushVarEventToFrame (target_id, target_variable, event_source, tag, value) {
+      const event = {
+        type: 'var',
+        target_id,
+        id: target_variable.id,
+        name: target_variable.name,
+        tag,
+        value,
+        source: event_source,
+        timestamp: Date.now()
       }
-
-      // If the variable is not blessed, return
-      if (!proxy) return
-
-      // Set flag to mask event trigger
-      this.networkUpdateTracker[metadata.class].get(metadata.id).current = true
-
-      // Set new value
-      proxy.value = newvalue
+      this.getCurrentFrame().push(event)
+    }
+    pushListEventToFrame (
+      target_id,
+      target_list,
+      event_source,
+      tag,
+      event_type,
+      value
+    ) {
+      const event = {
+        type: 'list',
+        target_id,
+        id: target_list.id,
+        name: target_list.name,
+        tag,
+        method: event_type,
+        payload: value,
+        source: event_source,
+        timestamp: Date.now()
+      }
+      this.getCurrentFrame().push(event)
     }
 
-    /**
-     * Updates the value of a proxy array while masking the event trigger.
-     * Used to update the value of a networked array without triggering events.
-     * @param {Object} metadata - Metadata containing information about the proxy to access. Generated by the makeNetworkedList function.
-     * @param {any} newvalue - The new value to assign to the proxy without event triggering.
-     */
-    updateProxyArray (metadata, method, newvalue) {
-      /* 
-            metadata = {
-                id: string,
-                class: "global" | "local" | "clone",
-                target: 0 | string
-            }
-            */
-
-      if (!metadata) return
-      let proxy
-
-      switch (metadata.class) {
-        case 'global':
-          proxy = vm.runtime.targets[metadata.target].variables[metadata.id]
-          break
-        case 'local':
-        case 'clone':
-          proxy = vm.runtime.getTargetById(metadata.target).variables[
-            metadata.id
-          ]
-          break
-        default:
-          throw new Error('Unhandled class type.')
-      }
-
-      // If the variable is not blessed, return
-      if (!proxy) return
-
-      // Set flag to mask event trigger
-      this.networkUpdateTracker[metadata.class].get(metadata.id).current = true
-
-      // Set new value
-      switch (method) {
-        case 'reset':
-        case 'set':
-          proxy.value = newvalue
-          break
-        case 'length':
-          proxy.value.length = newvalue
-          return
-        case 'replace':
-          proxy.value[newvalue.property] = newvalue.value
-          break
-      }
-
-      // Refresh monitor for list
-      proxy._monitorUpToDate = false
-    }
-
-    /**
-     * Overwrites a variable with a proxy that can track changes. It also marks the variable for overwrites so that
-     * the runtime can recognize the change.
-     *
-     * @param {Object} myVar - The object containing the variable to be proxied.
-     * @param {string} classtype - Whether the variable is operating in a global/local/clone target.
-     * @returns {Array[Proxy, String]} - An array containing a proxy object for the variable and the event handler name of the variable.
-     */
-    createVariableProxy (myVar, classtype) {
-      if (!this.varEvents[classtype].has(myVar.id)) {
-        this.varEvents[classtype].set(myVar.id, {
-          on: myVar.id + '_on',
-          off: myVar.id + '_off'
-        })
-      }
-
-      if (!myVar.hasOwnProperty('bless')) {
-        const proxy = new Proxy(myVar, {
-          set (target, property, value) {
+    // --- Proxy Creators ---
+    createVariableProxy (target_id, target_variable, tag) {
+      const self = this
+      if (!target_variable.hasOwnProperty('bless')) {
+        const proxy = new Proxy(target_variable, {
+          set (_, property, value) {
             if (property === 'value')
-              Syncs.handle_var_update(myVar.id, classtype, value)
+              self._handleVarUpdate(target_id, target_variable, tag, value)
             return Reflect.set(...arguments)
           }
         })
-
         Object.defineProperty(proxy, 'bless', {
           enumerable: false,
           configurable: true,
           writable: true,
           value: true
         })
-
-        return [proxy, this.varEvents[classtype].get(myVar.id)]
+        return proxy
       }
-
-      return [myVar, this.varEvents[classtype].get(myVar.id)]
+      return target_variable
     }
-
-    /**
-     * Creates a proxy for an array to monitor and handle changes.
-     * Triggers event handlers on modifications, such as setting or replacing elements.
-     *
-     * @param {Object} myList - The object containing the array to be proxied.
-     * @param {string} classtype - Whether the array is operating in a global/local/clone target.
-     * @returns {Array[Proxy, Object]} - An array containing a proxy object for the array and an object of event handler names for the array.
-     */
-    createArrayProxy (myList, classtype) {
-      let list = myList.value
-
-      if (!this.listEvents[classtype].has(myList.id)) {
-        this.listEvents[classtype].set(myList.id, {
-          off: myList.id + '_off',
-          length: myList.id + '_length',
-          replace: myList.id + '_replace',
-          set: myList.id + '_set',
-          reset: myList.id + '_reset'
-        })
-      }
-
+    createArrayProxy (target_id, target_list, tag) {
+      const self = this
+      const list = target_list.value
       if (!list.hasOwnProperty('bless')) {
-        let proxy = new Proxy(list, {
+        const proxy = new Proxy(list, {
           set (target, property, value) {
             target[property] = value
-            Syncs.handle_list_update(
-              myList.id,
-              classtype,
-              target,
-              property,
-              value
-            )
+            self._handleListUpdate(target_id, target_list, tag, property, value)
             return true
           }
         })
-
         Object.defineProperty(proxy, 'bless', {
           enumerable: false,
           configurable: true,
           writable: true,
           value: true
         })
-
-        return [proxy, this.listEvents[classtype].get(myList.id)]
+        return proxy
       }
-
-      return [list, this.listEvents[classtype].get(myList.id)]
+      return target_list.value
     }
 
-    /**
-     * Updates the internal state of the NetworkedVariables class to reflect
-     * changes to variables and lists in the runtime. It checks for the existence
-     * of variables and lists and marks them for updates if they don't exist
-     * anymore. It also converts unblessed variables and lists to networked
-     * variables and lists if they are found.
-     */
+    // --- Main Loop & Event Transmission ---
     update () {
-      this.networkUpdateTracker.global.keys().forEach(id => {
-        this.update_type(this.networkUpdateTracker.global.get(id), id)
-      })
+      // --- 1. Variable Health Check ---
+      this._healthCheck()
 
-      this.networkUpdateTracker.local.keys().forEach(id => {
-        this.update_type(this.networkUpdateTracker.local.get(id), id)
-      })
+      // --- 2. Time Calculation ---
+      const now = Date.now()
+      const deltaTime = now - this.lastFrameTime
+      this.lastFrameTime = now
+      this.timeAccumulator += deltaTime
 
-      this.networkUpdateTracker.clone.keys().forEach(id => {
-        this.update_type(this.networkUpdateTracker.clone.get(id), id)
-      })
-    }
-
-    update_type (element, id) {
-      switch (element.type) {
-        case 'var':
-          switch (element.classtype) {
-            case 'global':
-              // Global variable was deleted
-              if (!vm.runtime.targets[0].variables[id]) {
-                console.log('Global variable', id, 'was deleted')
-                this.core.callbacks.call(
-                  this.varEvents[element.classtype].get(id).off
-                )
-                this.varEvents[element.classtype].delete(id)
-                this.networkUpdateTracker[element.classtype].delete(id)
-                return
-              }
-              break
-
-            case 'clone':
-              // Clone holdin the variable was deleted
-              if (!vm.runtime.getTargetById(element.clone_id)) {
-                console.log(
-                  'Clone that was holding clone variable',
-                  id,
-                  'was deleted'
-                )
-                this.core.callbacks.call(
-                  this.varEvents[element.classtype].get(id).off
-                )
-                this.varEvents[element.classtype].delete(id)
-                this.networkUpdateTracker[element.classtype].delete(id)
-                return
-
-                // Variable was deleted
-              } else if (
-                !vm.runtime.getTargetById(element.clone_id).variables[id]
-              ) {
-                console.log('Clone variable', id, 'was deleted')
-                this.core.callbacks.call(
-                  this.varEvents[element.classtype].get(id).off
-                )
-                this.varEvents[element.classtype].delete(id)
-                this.networkUpdateTracker[element.classtype].delete(id)
-                return
-              }
-              break
-
-            case 'local':
-              // Variable was deleted
-              if (!vm.runtime.getTargetById(element.target_id).variables[id]) {
-                console.log('Local variable', id, 'was deleted')
-                this.core.callbacks.call(
-                  this.varEvents[element.classtype].get(id).off
-                )
-                this.varEvents[element.classtype].delete(id)
-                this.networkUpdateTracker[element.classtype].delete(id)
-                return
-              }
-              break
-          }
-          break
-
-        case 'list':
-          switch (element.classtype) {
-            case 'global':
-              // Global list was deleted
-              if (!vm.runtime.targets[0].variables[id]) {
-                console.log('Global list', id, 'was deleted')
-                this.core.callbacks.call(
-                  this.listEvents[element.classtype].get(id).off
-                )
-                this.listEvents[element.classtype].delete(id)
-                this.networkUpdateTracker[element.classtype].delete(id)
-                return
-              } else {
-                // Global list was reset and needs to be re-blessed
-                if (
-                  !vm.runtime.targets[0].variables[id].value.hasOwnProperty(
-                    'bless'
-                  )
-                ) {
-                  this.rebless_list(element, id, element.classtype)
-                  return
-                }
-              }
-              break
-
-            case 'clone':
-              // If the sprite that was managing the list was deleted, destroy bindings
-              if (!vm.runtime.getTargetById(element.clone_id)) {
-                console.log('Clone that was holding list', id, 'was deleted')
-                this.core.callbacks.call(
-                  this.listEvents[element.classtype].get(id).off
-                )
-                this.listEvents[element.classtype].delete(id)
-                this.networkUpdateTracker[element.classtype].delete(id)
-                return
-
-                // If the list was deleted in the clone, destroy bindings
-              } else if (
-                !vm.runtime.getTargetById(element.clone_id).variables[id]
-              ) {
-                console.log('Clone list', id, 'was deleted')
-                this.core.callbacks.call(
-                  this.listEvents[element.classtype].get(id).off
-                )
-                this.listEvents[element.classtype].delete(id)
-                this.networkUpdateTracker[element.classtype].delete(id)
-                return
-
-                // List was reset and needs to be re-blessed
-              } else {
-                if (
-                  !vm.runtime
-                    .getTargetById(element.clone_id)
-                    .variables[id].value.hasOwnProperty('bless')
-                ) {
-                  this.rebless_list(element, id, element.classtype)
-                  return
-                }
-              }
-              break
-
-            case 'local':
-              // The list was deleted, so destroy it
-              if (!vm.runtime.getTargetById(element.target_id).variables[id]) {
-                console.log('Local list', id, 'was deleted')
-                this.core.callbacks.call(
-                  this.listEvents[element.classtype].get(id).off
-                )
-                this.listEvents[element.classtype].delete(id)
-                this.networkUpdateTracker[element.classtype].delete(id)
-                return
-
-                // List was reset and needs to be re-blessed
-              } else {
-                if (
-                  !vm.runtime
-                    .getTargetById(element.target_id)
-                    .variables[id].value.hasOwnProperty('bless')
-                ) {
-                  this.rebless_list(element, id, true)
-                  return
-                }
-              }
-              break
-          }
-          break
-      }
-    }
-
-    rebless_list (element, id, classtype) {
-      let myList
-      switch (classtype) {
-        case 'global':
-          myList = vm.runtime.targets[0].variables[id]
-          break
-
-        case 'clone':
-          myList = vm.runtime.getTargetById(element.clone_id).variables[id]
-          break
-
-        case 'local':
-          myList = vm.runtime.getTargetById(element.target_id).variables[id]
-          break
+      // --- 3. Idle Timeout Check (Runs every tick) ---
+      // Check if it's been over 1 second since we last processed a frame
+      if (now - this.lastProcessedFrameTime > this.idleTimeout) {
+        // We are idle. Check if there's anything to reset.
+        if (this.eventStack.length > 1 || this.timeAccumulator > 0) {
+          if (!this.lastCheckIdle) 
+            console.log(
+              '[CLΔ Sync] Idling. Resetting event stack and accumulator.'
+            )
+          this.eventStack = [[]]
+          this.timeAccumulator = 0
+        }
+        // Reset the idle timer to prevent this from logging every tick
+        this.lastProcessedFrameTime = now
+        this.lastCheckIdle = true
       }
 
-      let [proxy, callback] = this.createArrayProxy(myList, classtype)
-
-      switch (classtype) {
-        case 'global':
-          vm.runtime.targets[0].variables[id].value = proxy
-          break
-
-        case 'clone':
-          vm.runtime.getTargetById(element.clone_id).variables[id].value = proxy
-          break
-
-        case 'local':
-          vm.runtime.getTargetById(element.target_id).variables[id].value =
-            proxy
-          break
-      }
-
-      let tracker = this.networkUpdateTracker[classtype].get(id)
-      if (tracker.current) {
-        tracker.current = false
-        tracker.last = true
+      // --- 4. Batch Processing Check ---
+      // If not enough time has passed for a batch, do nothing else.
+      if (this.timeAccumulator < this.batchInterval) {
         return
       }
 
-      this.core.callbacks.call(callback.reset, proxy)
+      // --- Time to process a batch ---
+      this.timeAccumulator = this.timeAccumulator % this.batchInterval
+      const frameToProcess = this.getCurrentFrame()
+      const frameIndex = this.eventStack.length - 1
+
+      // If no events happened in this batch, we can skip creating a new frame
+      if (frameToProcess.length === 0) {
+        // We log that we processed an empty frame, but we DON'T update
+        // this.lastProcessedFrameTime. This allows the idle timer to continue.
+        // console.log(`[CLΔ Sync] Processing frame ${frameIndex} (events: 0)...`);
+        return
+      }
+
+      this.lastCheckIdle = false
+
+      // --- We have events, so we are NOT idle ---
+      console.log(
+        `[CLΔ Sync] Begin processing frame ${frameIndex} (events: ${frameToProcess.length})...`
+      )
+
+      // We processed a non-empty frame, so reset the idle timer
+      this.lastProcessedFrameTime = now
+
+      // Add a new, empty frame for the *next* batch
+      this.eventStack.push([])
+
+      // --- 5. Process Events from the Completed Frame ---
+      for (const event of frameToProcess) {
+        if (event.source === 'local') {
+          this.transmitEvent(event)
+        }
+      }
+
+      // --- 6. Housekeeping: Drop Old Frames ---
+      while (this.eventStack.length > this.retainedFrames) {
+        this.eventStack.shift()
+      }
     }
 
-    /**
-     * Overwrites a variable with a proxy that can track changes. It also marks the variable for overwrites so that
-     * the runtime can recognize the change.
-     *
-     * @param {Object} myVar - The object containing the variable to be proxied.
-     * @param {string } target_id - The target ID the variable was bound to.
-     * @param {string | undefined} clone_id - Whether the variable is operating in a sprite clone, specify the ID. Otherwise it will be undefined.
-     * @returns {Array[Proxy, string, Object]} - An array containing a proxy object for the variable, event handler IDs for the proxy, and metadata.
-     */
-    makeNetworkedVariable (myVar, target_id, clone_id = undefined) {
-      var classtype = ''
-
-      if (clone_id != undefined) {
-        classtype = 'clone'
-      } else if (vm.runtime.getTargetById(target_id).variables[myVar.id]) {
-        classtype = 'local'
-      } else if (vm.runtime.targets[0].variables[myVar.id]) {
-        classtype = 'global'
-      } else {
-        throw new Error(
-          "Unhandled variable state. Couldn't determine if variable is global, local, or clone-only."
-        )
-      }
-
-      let metadata = {
-        id: myVar.id,
-        class: classtype,
-        // target: 0 | string
-        type: 'var'
-      }
-
-      if (!this.networkUpdateTracker[classtype].has(myVar.id)) {
-        this.networkUpdateTracker[classtype].set(myVar.id, {
-          current: false,
+    transmitEvent (event) {
+      let networkPayload
+      if (event.type === 'var') {
+        networkPayload = {
           type: 'var',
-          proxy: undefined,
-          classtype,
-          events: undefined,
-          is_clone: clone_id != undefined,
-          clone_id: clone_id,
-          target_id: target_id
-        })
+          tag: event.tag,
+          value: event.value
+        }
+      } else if (event.type === 'list') {
+        networkPayload = {
+          type: 'list',
+          tag: event.tag,
+          method: event.method,
+          payload: event.payload
+        }
       }
-
-      const [varProxy, events] = this.createVariableProxy(myVar, classtype)
-      const tracker = this.networkUpdateTracker[classtype].get(myVar.id)
-      tracker.proxy = varProxy
-      tracker.events = events
-
-      switch (classtype) {
-        case 'global':
-          vm.runtime.targets[0].variables[myVar.id] = varProxy
-          metadata.target = 0
-          break
-
-        case 'local':
-          vm.runtime.getTargetById(target_id).variables[myVar.id] = varProxy
-          metadata.target = target_id
-          break
-
-        case 'clone':
-          vm.runtime.getTargetById(clone_id).variables[myVar.id] = varProxy
-          metadata.target = target_id
-          break
+      if (networkPayload && this.onTransmit) {
+        this.onTransmit(networkPayload)
       }
+    }
 
-      return [varProxy, events, metadata]
+    // --- Health Check & Re-bless ---
+    _healthCheck () {
+      for (const [target_id, varMap] of this.tracker.entries()) {
+        const target = vm.runtime.getTargetById(target_id)
+        if (!target) {
+          console.log(
+            `[CLΔ Sync] Networked target ${target_id} was deleted. Removing trackers...`
+          )
+          for (const tracker_elem of varMap.values()) {
+            console.log(`  > Removing tag: ${tracker_elem.tag}`)
+            this.tagMap.delete(tracker_elem.tag)
+          }
+          this.tracker.delete(target_id)
+          continue
+        }
+        for (const [var_id, tracker_elem] of varMap.entries()) {
+          const variable = target.variables[var_id]
+          if (!variable) {
+            console.log(
+              `[CLΔ Sync] Networked item "${tracker_elem.tag}" (ID: ${var_id}) was deleted from target ${target_id}. Removing tracker.`
+            )
+            this.tagMap.delete(tracker_elem.tag)
+            varMap.delete(var_id)
+            continue
+          }
+          if (tracker_elem.type === 'list') {
+            if (!variable.value.hasOwnProperty('bless')) {
+              console.log(
+                `[CLΔ Sync] Networked list "${tracker_elem.tag}" (ID: ${var_id}) was reset. Re-blessing.`
+              )
+              this.rebless_list(target_id, var_id)
+            }
+          }
+        }
+      }
+    }
+    rebless_list (target_id, list_id) {
+      const target_list =
+        vm.runtime.getTargetById(target_id)?.variables[list_id]
+      if (!target_list) return
+      const tracker_elem = this.tracker.get(target_id)?.get(list_id)
+      if (!tracker_elem) return
+      const tag = tracker_elem.tag
+      const listProxy = this.createArrayProxy(target_id, target_list, tag)
+      setListValueTarget(target_id, target_list, listProxy)
+      tracker_elem.proxy = listProxy
+      tracker_elem.parentList = target_list
+      if (tracker_elem.current) {
+        tracker_elem.current = false
+        tracker_elem.last = true
+      }
+      this.pushListEventToFrame(
+        target_id,
+        target_list,
+        'local',
+        tag,
+        'reset',
+        target_list.value
+      )
+      return listProxy
+    }
+
+    // --- Public API: Registration ---
+    /**
+     * @returns {boolean} - True on success, false on failure.
+     */
+    makeNetworkedVariable (target_id, variable_name, tag) {
+      if (this.tagMap.has(tag)) {
+        const existing = this.tagMap.get(tag)
+        if (
+          existing.name === variable_name &&
+          existing.target_id === target_id
+        ) {
+          return true // Already registered
+        }
+        // Use console.warn instead of throw
+        console.warn(
+          `[CLΔ Sync] Tag "${tag}" is already in use for a different variable. Tags must be unique.`
+        )
+        return false // Return false on failure
+      }
+      const target_variable = getTarget(target_id, variable_name)
+      if (!target_variable) {
+        console.warn(
+          `[CLΔ Sync] Variable "${variable_name}" not found on target "${target_id}"`
+        )
+        return false // Return false on failure
+      }
+      const varProxy = this.createVariableProxy(target_id, target_variable, tag)
+      setVariableTarget(target_id, target_variable, varProxy)
+      if (!this.tracker.has(target_id)) this.tracker.set(target_id, new Map())
+      const tracker_elem = {
+        type: 'var',
+        id: target_variable.id,
+        name: target_variable.name,
+        target_id: target_id,
+        current: false,
+        proxy: varProxy,
+        tag: tag
+      }
+      this.tracker.get(target_id).set(target_variable.id, tracker_elem)
+      this.tagMap.set(tag, tracker_elem)
+      return true // Return true on success
     }
 
     /**
-     * Creates a proxy for an array to monitor and handle changes.
-     * Triggers event handlers on modifications, such as setting or replacing elements.
-     *
-     * @param {Object} myList - The object containing the array to be proxied.
-     * @param {string} target_id - The target ID the array was bound to.
-     * @param {string | undefined} clone_id - Whether the array is operating in a sprite clone, specify the ID. Otherwise it will be undefined.
-     * @returns {Array[Proxy, Object, Object]} - An array containing a proxy object for the array, an object of event IDs for the array, and an object for metadata.
+     * @returns {boolean} - True on success, false on failure.
      */
-    makeNetworkedList (myList, target_id, clone_id = undefined) {
-      var classtype = ''
-
-      if (clone_id != undefined) {
-        classtype = 'clone'
-      } else if (vm.runtime.getTargetById(target_id).variables[myList.id]) {
-        classtype = 'local'
-      } else if (vm.runtime.targets[0].variables[myList.id]) {
-        classtype = 'global'
-      } else {
-        throw new Error(
-          "Unhandled list state. Couldn't determine if variable is global, local, or clone-only."
+    makeNetworkedList (target_id, list_name, tag) {
+      if (this.tagMap.has(tag)) {
+        const existing = this.tagMap.get(tag)
+        if (existing.name === list_name && existing.target_id === target_id) {
+          return true // Already registered
+        }
+        // Use console.warn instead of throw
+        console.warn(
+          `[CLΔ Sync] Tag "${tag}" is already in use for a different list. Tags must be unique.`
         )
+        return false // Return false on failure
       }
-
-      let metadata = {
-        id: myList.id,
-        class: classtype,
-        // target: 0 | string
-        type: 'list'
+      const target_list = getTarget(target_id, list_name)
+      if (!target_list) {
+        console.warn(
+          `[CLΔ Sync] List "${list_name}" not found on target "${target_id}"`
+        )
+        return false // Return false on failure
       }
-
-      if (!this.networkUpdateTracker[classtype].has(myList.id)) {
-        this.networkUpdateTracker[classtype].set(myList.id, {
-          current: false,
-          type: 'list',
-          proxy: undefined,
-          events: undefined,
-          classtype,
-          last: false,
-          is_clone: clone_id != undefined,
-          clone_id: clone_id,
-          target_id: target_id
-        })
+      const listProxy = this.createArrayProxy(target_id, target_list, tag)
+      setListValueTarget(target_id, target_list, listProxy)
+      if (!this.tracker.has(target_id)) this.tracker.set(target_id, new Map())
+      const tracker_elem = {
+        type: 'list',
+        id: target_list.id,
+        name: target_list.name,
+        target_id: target_id,
+        current: false,
+        last: false,
+        proxy: listProxy,
+        parentList: target_list,
+        tag: tag
       }
-
-      const [arrayProxy, events] = this.createArrayProxy(myList, classtype)
-      const tracker = this.networkUpdateTracker[classtype].get(myList.id)
-      tracker.proxy = arrayProxy
-      tracker.events = events
-
-      switch (classtype) {
-        case 'global':
-          vm.runtime.targets[0].variables[myList.id].value = arrayProxy
-          metadata.target = 0
-          break
-
-        case 'local':
-          vm.runtime.getTargetById(target_id).variables[myList.id].value =
-            arrayProxy
-          metadata.target = target_id
-          break
-
-        case 'clone':
-          vm.runtime.getTargetById(clone_id).variables[myList.id].value =
-            arrayProxy
-          metadata.target = clone_id
-          break
-      }
-
-      return [arrayProxy, events, metadata]
+      this.tracker.get(target_id).set(target_list.id, tracker_elem)
+      this.tagMap.set(tag, tracker_elem)
+      return true // Return true on success
     }
 
-    handle_list_update (myListId, classtype, target, property, value) {
-      const tracker = this.networkUpdateTracker[classtype].get(myListId)
-      const events = this.listEvents[classtype].get(myListId)
+    removeNetworked (tag) {
+      const tracker = this.tagMap.get(tag)
+      if (!tracker) return false
+      this.tagMap.delete(tag)
+      const varMap = this.tracker.get(tracker.target_id)
+      if (varMap) {
+        varMap.delete(tracker.id)
+        console.log(`[CLΔ Sync] Disabled sync for tag "${tag}"`)
+        return true
+      }
+      return false
+    }
 
-      if (tracker.current) {
-        tracker.current = false
-        tracker.last = true
-        return
-      } else {
-        if (tracker.last) {
-          tracker.last = false
-          return
-        }
-
-        let eventType
-        if (property === '_monitorUpToDate') {
-          eventType = 'set'
-        } else if (property === 'length') {
-          eventType = 'length'
-        } else if (!isNaN(property)) {
-          if (property < target.length) {
-            eventType = 'replace'
-          } else {
-            eventType = 'set'
+    // --- Public API: Receiving Network Updates ---
+    updateProxyVariable (tag, value) {
+      const tracker_elem = this.tagMap.get(tag)
+      if (!tracker_elem) return
+      if (tracker_elem.type !== 'var') return
+      tracker_elem.current = true
+      tracker_elem.proxy.value = value
+    }
+    updateProxyArray (tag, method, payload) {
+      const tracker_elem = this.tagMap.get(tag)
+      if (!tracker_elem) return
+      if (tracker_elem.type !== 'list') return
+      const proxy = tracker_elem.proxy
+      tracker_elem.current = true
+      switch (method) {
+        case 'reset':
+        case 'set':
+          proxy.length = 0
+          if (Array.isArray(payload)) {
+            proxy.push(...payload)
           }
-        }
+          break
+        case 'length':
+          proxy.length = payload
+          break
+        case 'replace':
+          proxy[payload.property] = payload.value
+          break
+      }
+      if (tracker_elem.parentList) {
+        tracker_elem.parentList._monitorUpToDate = false
+      }
+    }
 
-        switch (eventType) {
-          case 'set':
-            this.core.callbacks.call(events.set, { property, value })
-            break
-          case 'replace':
-            this.core.callbacks.call(events.replace, { property, value })
-            break
-          case 'length':
-            this.core.callbacks.call(events.length, value)
-            break
-          default:
-            throw new Error('Unhandled event type.')
+    // --- Public API: Rollback ---
+    rollbackToFrame (n, priority) {
+      if (n <= 0) {
+        console.warn(`[CLΔ Sync] Rollback value must be > 0.`)
+        return
+      }
+      if (priority !== 'local' && priority !== 'network') {
+        console.warn(`[CLΔ Sync] Rollback priority must be 'local' or 'network'.`)
+        return
+      }
+      const frameIndex = this.eventStack.length - 1 - n
+      if (frameIndex < 0 || frameIndex >= this.eventStack.length) {
+        console.warn(
+          `[CLΔ Sync] Cannot roll back ${n} frames. Only ${
+            this.eventStack.length - 1
+          } processed frames are in history.`
+        )
+        return
+      }
+      const frame = this.eventStack[frameIndex]
+      console.log(
+        `[CLΔ Sync] Rolling back to frame ${n} (index ${frameIndex}) with ${priority} priority...`
+      )
+      for (const event of frame) {
+        if (event.source !== priority) {
+          continue
+        }
+        if (event.type === 'var') {
+          this.updateProxyVariable(event.tag, event.value)
+        } else if (event.type === 'list') {
+          this.updateProxyArray(event.tag, event.method, event.payload)
         }
       }
     }
 
-    handle_var_update (myVarId, classtype, value) {
-      const tracker = this.networkUpdateTracker[classtype].get(myVarId)
-      const events = this.varEvents[classtype].get(myVarId)
-      if (tracker.current) {
-        tracker.current = false
-      } else {
-        this.core.callbacks.call(events.on, value)
+    // --- Internal Handlers ---
+    _handleListUpdate (target_id, target_list, tag, property, value) {
+      const tracker_elem = this.tracker.get(target_id).get(target_list.id)
+      let source = 'local'
+      if (tracker_elem.last) {
+        tracker_elem.last = false
+        tracker_elem.current = true
+        source = 'network'
+      } else if (tracker_elem.current) {
+        tracker_elem.current = false
+        source = 'network'
       }
+      if (source === 'network') return
+      let type
+      let payload
+      if (property === '_monitorUpToDate') {
+        type = 'set'
+        payload = [...target_list.value]
+      } else if (property === 'length') {
+        type = 'length'
+        payload = value
+      } else if (!isNaN(property)) {
+        type = 'replace'
+        payload = { property: property, value: value }
+      } else {
+        type = 'set'
+        payload = [...target_list.value]
+      }
+      this.pushListEventToFrame(
+        target_id,
+        target_list,
+        'local',
+        tag,
+        type,
+        payload
+      )
+    }
+    _handleVarUpdate (target_id, target_variable, tag, value) {
+      const tracker_elem = this.tracker.get(target_id).get(target_variable.id)
+      let source = 'local'
+      if (tracker_elem.current) {
+        tracker_elem.current = false
+        source = 'network'
+      }
+      if (source === 'network') return
+      this.pushVarEventToFrame(target_id, target_variable, 'local', tag, value)
     }
   }
 
   class CloudLinkDelta_Sync {
     constructor () {
       this.netvars = new NetworkedVariables()
-      this.core
+      this.netvars.onTransmit = payload => this.handleTransmit(payload)
+      this.core = null
+      this.broadcasts = new Map()
+      this.multicasts = new Map()
+      this.unicasts = new Map()
     }
 
-    /**
-     * Called when the plugin is registered with the core extension.
-     *
-     * @param {Object} core - The core object of the CLΔ framework.
-     */
     register (core) {
-      // Implement any additional hooks
       this.core = core
-      this.netvars.core = core
-
+      core.onMessage = core.onMessage || {}
+      core.onMessage.sync = payload => this.handleReceive(payload)
       if (!core.plugins.includes('sync')) {
         core.plugins.push('sync')
         console.log('CLΔ Sync plugin registered.')
+      }
+    }
+
+    handleTransmit (payload) {
+      if (!this.core || !this.core.send) {
+        return
+      }
+      const tag = payload.tag
+      if (this.broadcasts.has(tag)) {
+        const { channel } = this.broadcasts.get(tag)
+        this.core.send('broadcast', { channel: channel, payload: payload })
+      } else if (this.multicasts.has(tag)) {
+        const { channel, list } = this.multicasts.get(tag)
+        // TODO: Implement multicast send
+      } else if (this.unicasts.has(tag)) {
+        const { channel, peer } = this.unicasts.get(tag)
+        // TODO: Implement unicast send
+      }
+    }
+
+    handleReceive (message) {
+      const payload = message.payload ? message.payload : message
+      if (!payload || !payload.tag || !payload.type) {
+        return
+      }
+      if (payload.type === 'var') {
+        this.netvars.updateProxyVariable(payload.tag, payload.value)
+      } else if (payload.type === 'list') {
+        this.netvars.updateProxyArray(
+          payload.tag,
+          payload.method,
+          payload.payload
+        )
       }
     }
 
@@ -814,126 +711,317 @@
         blockIconURI: blockIcon,
         color1: '#0F7EBD',
         blocks: [
-          // Broadcast
+          opcodes.label('Tags'),
+          opcodes.boolean('isTagInUse', 'is tag [TAG] in use?', {
+            TAG: args.string('network tag')
+          }),
+          opcodes.reporter('getTagBinding', 'tag [TAG] currently bound to', {
+            TAG: args.string('network tag')
+          }),
+          opcodes.separator(),
           opcodes.label('Broadcast'),
-          opcodes.command(
+          opcodes.boolean(
             'doBroadcast',
-            '[MODE] broadcast of [TYPE] [VAR] in channel [CHANNEL]',
+            '[MODE] broadcast of [TYPE] [VAR] in channel [CHANNEL] with tag [TAG]',
             {
               MODE: args.string('enable', { menu: 'mode' }),
-              TYPE: args.string('variable', { menu: 'type' }),
+              TYPE: args.string('global variable', { menu: 'type' }),
               VAR: args.string('my variable'),
-              CHANNEL: args.string('default')
+              CHANNEL: args.string('default'),
+              TAG: args.string('network tag')
             }
           ),
           opcodes.boolean(
             'checkBroadcast',
-            'is [TYPE] [VAR] broadcasting in channel [CHANNEL]?',
+            'is [TYPE] [VAR] broadcasting in channel [CHANNEL] with tag [TAG]?',
             {
-              TYPE: args.string('variable', { menu: 'type' }),
+              TYPE: args.string('global variable', { menu: 'type' }),
               VAR: args.string('my variable'),
-              CHANNEL: args.string('default')
+              CHANNEL: args.string('default'),
+              TAG: args.string('network tag')
             }
           ),
           opcodes.separator(),
-
-          // Multicast
           opcodes.label('Multicast'),
-          opcodes.command(
+          opcodes.boolean(
             'doMulticast',
-            '[MODE] multicast of [TYPE] [VAR] in channel [CHANNEL] with peers in list [LIST]',
+            '[MODE] multicast of [TYPE] [VAR] in channel [CHANNEL] with peers in list [LIST] with tag [TAG]',
             {
               MODE: args.string('enable', { menu: 'mode' }),
-              TYPE: args.string('variable', { menu: 'type' }),
+              TYPE: args.string('global variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
               LIST: args.string('my list'),
+              TAG: args.string('network tag')
             }
           ),
           opcodes.boolean(
             'checkMulticast',
-            'is [TYPE] [VAR] multicasting to peers in list [LIST] in channel [CHANNEL]?',
+            'is [TYPE] [VAR] multicasting to peers in list [LIST] in channel [CHANNEL] with tag [TAG]?',
             {
-              TYPE: args.string('variable', { menu: 'type' }),
+              TYPE: args.string('global variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
               LIST: args.string('my list'),
+              TAG: args.string('network tag')
             }
           ),
           opcodes.separator(),
-
-          // Unicast
           opcodes.label('Unicast'),
-          opcodes.command(
+          opcodes.boolean(
             'doUnicast',
-            '[MODE] unicast of [TYPE] [VAR] with [PEER] in channel [CHANNEL]',
+            '[MODE] unicast of [TYPE] [VAR] with [PEER] in channel [CHANNEL] with tag [TAG]',
             {
               MODE: args.string('enable', { menu: 'mode' }),
-              TYPE: args.string('variable', { menu: 'type' }),
+              TYPE: args.string('global variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
-              PEER: args.string('B')
+              PEER: args.string('B'),
+              TAG: args.string('network tag')
             }
           ),
           opcodes.boolean(
             'checkUnicast',
-            'is [TYPE] [VAR] unicasting with [PEER] in channel [CHANNEL]?',
+            'is [TYPE] [VAR] unicasting with [PEER] in channel [CHANNEL] with tag [TAG]?',
             {
-              TYPE: args.string('variable', { menu: 'type' }),
+              TYPE: args.string('global variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
-              PEER: args.string('B')
+              PEER: args.string('B'),
+              TAG: args.string('network tag')
             }
           )
         ],
         menus: {
           mode: {
-            items: [
-              Scratch.translate('disable'),
-              Scratch.translate('enable'),
-            ]
+            items: [Scratch.translate('disable'), Scratch.translate('enable')]
           },
           type: {
             items: [
-              Scratch.translate('variable'),
-              Scratch.translate('list'),
+              Scratch.translate('global variable'),
+              Scratch.translate('local variable'),
+              Scratch.translate('clone variable'),
+              Scratch.translate('global list'),
+              Scratch.translate('local list'),
+              Scratch.translate('clone list')
             ]
           }
         }
       }
     }
 
-    doBroadcast ({ TYPE, MODE, VAR, CHANNEL }) {
-      if (!this.core) return
+    isTagInUse ({ TAG }) {
+      const tag = Scratch.Cast.toString(TAG)
+      return this.netvars.tagMap.has(tag)
     }
-    checkBroadcast ({ TYPE, VAR, CHANNEL }) {
-      if (!this.core) return
+
+    getTagBinding ({ TAG }) {
+      const tag = Scratch.Cast.toString(TAG)
+      const tracker = this.netvars.tagMap.get(tag)
+      if (!tracker) return ''
+      let scope = 'unknown'
+      const target = vm.runtime.getTargetById(tracker.target_id)
+      if (target) {
+        if (target.isStage) {
+          scope = 'global'
+        } else if (target.isOriginal) {
+          scope = 'local'
+        } else {
+          scope = 'clone'
+        }
+      }
+      const type = tracker.type === 'var' ? 'variable' : 'list'
+      return `${scope} ${type}: ${tracker.name}`
     }
-    doMulticast({ TYPE, MODE, VAR, CHANNEL, LIST }) {
-      if (!this.core) return
+
+    doBroadcast ({ TYPE, MODE, VAR, CHANNEL, TAG }, util) {
+      if (!this.core) return false
+      TYPE = Scratch.Cast.toString(TYPE)
+      MODE = Scratch.Cast.toString(MODE)
+      const name = Scratch.Cast.toString(VAR)
+      const tag = Scratch.Cast.toString(TAG)
+      const channel = Scratch.Cast.toString(CHANNEL)
+      const parts = TYPE.split(' ')
+      const scope = parts[0]
+      const type = parts[1]
+      if (type !== 'variable' && type !== 'list') return false
+      let target_id
+      if (scope === 'global') {
+        target_id = vm.runtime.getTargetForStage().id
+      } else if (scope === 'local' || scope === 'clone') {
+        target_id = util.target.id
+      } else {
+        return false
+      }
+
+      if (MODE === 'disable') {
+        this.broadcasts.delete(tag)
+        return this.netvars.removeNetworked(tag)
+      } else {
+        // MODE === 'enable'
+        // Removed try...catch, now checking boolean return
+        let success = false
+        if (type === 'variable') {
+          success = this.netvars.makeNetworkedVariable(target_id, name, tag)
+        } else {
+          success = this.netvars.makeNetworkedList(target_id, name, tag)
+        }
+
+        if (success) {
+          this.broadcasts.set(tag, { channel: channel })
+          this.multicasts.delete(tag)
+          this.unicasts.delete(tag)
+          return true
+        } else {
+          // Failure was already logged by netvars
+          return false
+        }
+      }
     }
-    checkMulticast ({ TYPE, VAR, CHANNEL, LIST }) {
-      if (!this.core) return
+
+    checkBroadcast ({ TYPE, VAR, CHANNEL, TAG }) {
+      if (!this.core) return false
+      const tag = Scratch.Cast.toString(TAG)
+      const channel = Scratch.Cast.toString(CHANNEL)
+      const broadcast = this.broadcasts.get(tag)
+      if (!broadcast) return false
+      return broadcast.channel === channel
     }
-    doUnicast ({ TYPE, MODE, VAR, PEER, CHANNEL }) {
-      if (!this.core) return
+
+    doMulticast ({ TYPE, MODE, VAR, CHANNEL, LIST, TAG }, util) {
+      if (!this.core) return false
+      // Sanitize all inputs
+      TYPE = Scratch.Cast.toString(TYPE)
+      MODE = Scratch.Cast.toString(MODE)
+      const name = Scratch.Cast.toString(VAR)
+      const tag = Scratch.Cast.toString(TAG)
+      const channel = Scratch.Cast.toString(CHANNEL)
+      const listName = Scratch.Cast.toString(LIST)
+
+      const parts = TYPE.split(' ')
+      const scope = parts[0]
+      const type = parts[1]
+      if (type !== 'variable' && type !== 'list') return false
+
+      let target_id
+      if (scope === 'global') {
+        target_id = vm.runtime.getTargetForStage().id
+      } else if (scope === 'local' || scope === 'clone') {
+        target_id = util.target.id
+      } else {
+        return false
+      }
+
+      if (MODE === 'disable') {
+        this.multicasts.delete(tag)
+        return this.netvars.removeNetworked(tag)
+      } else {
+        // MODE === 'enable'
+        let success = false
+        if (type === 'variable') {
+          success = this.netvars.makeNetworkedVariable(target_id, name, tag)
+        } else {
+          success = this.netvars.makeNetworkedList(target_id, name, tag)
+        }
+
+        if (success) {
+          this.multicasts.set(tag, { channel: channel, list: listName })
+          this.broadcasts.delete(tag)
+          this.unicasts.delete(tag)
+          return true
+        } else {
+          return false
+        }
+      }
     }
-    checkUnicast ({ TYPE, VAR, PEER, CHANNEL }) {
-      if (!this.core) return
+
+    checkMulticast ({ TYPE, VAR, CHANNEL, LIST, TAG }) {
+      if (!this.core) return false
+      const tag = Scratch.Cast.toString(TAG)
+      const channel = Scratch.Cast.toString(CHANNEL)
+      const listName = Scratch.Cast.toString(LIST)
+
+      const multicast = this.multicasts.get(tag)
+      if (!multicast) return false
+
+      return multicast.channel === channel && multicast.list === listName
+    }
+
+    doUnicast ({ TYPE, MODE, VAR, PEER, CHANNEL, TAG }, util) {
+      if (!this.core) return false
+      // Sanitize all inputs
+      TYPE = Scratch.Cast.toString(TYPE)
+      MODE = Scratch.Cast.toString(MODE)
+      const name = Scratch.Cast.toString(VAR)
+      const tag = Scratch.Cast.toString(TAG)
+      const channel = Scratch.Cast.toString(CHANNEL)
+      const peer = Scratch.Cast.toString(PEER)
+
+      const parts = TYPE.split(' ')
+      const scope = parts[0]
+      const type = parts[1]
+      if (type !== 'variable' && type !== 'list') return false
+
+      let target_id
+      if (scope === 'global') {
+        target_id = vm.runtime.getTargetForStage().id
+      } else if (scope === 'local' || scope === 'clone') {
+        target_id = util.target.id
+      } else {
+        return false
+      }
+
+      if (MODE === 'disable') {
+        this.unicasts.delete(tag)
+        return this.netvars.removeNetworked(tag)
+      } else {
+        // MODE === 'enable'
+        let success = false
+        if (type === 'variable') {
+          success = this.netvars.makeNetworkedVariable(target_id, name, tag)
+        } else {
+          success = this.netvars.makeNetworkedList(target_id, name, tag)
+        }
+
+        if (success) {
+          this.unicasts.set(tag, { channel: channel, peer: peer })
+          this.broadcasts.delete(tag)
+          this.multicasts.delete(tag)
+          return true
+        } else {
+          return false
+        }
+      }
+    }
+
+    checkUnicast ({ TYPE, VAR, PEER, CHANNEL, TAG }) {
+      if (!this.core) return false
+      const tag = Scratch.Cast.toString(TAG)
+      const channel = Scratch.Cast.toString(CHANNEL)
+      const peer = Scratch.Cast.toString(PEER)
+
+      const unicast = this.unicasts.get(tag)
+      if (!unicast) return false
+
+      return unicast.channel === channel && unicast.peer === peer
     }
   }
 
-  // Register the plugin
+  // --- Plugin Registration ---
   const sync = new CloudLinkDelta_Sync()
   Scratch.extensions.register(sync)
   Scratch.vm.runtime.ext_cldelta_sync = sync
   console.log('CLΔ Sync plugin loaded.')
 
-  // Either immediately register, or defer
   const core = Scratch.vm.runtime.ext_cldelta_core
   if (core) {
     sync.register(core)
   } else {
     Scratch.vm.runtime.ext_cldelta_pluginloader.push(sync)
   }
+
+  // Bind hook to the VM
+  Scratch.vm.runtime.on('BEFORE_EXECUTE', () => {
+    sync.netvars.update()
+  })
 })(Scratch)
