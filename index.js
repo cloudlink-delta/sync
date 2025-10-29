@@ -350,14 +350,16 @@
         networkPayload = {
           type: 'var',
           tag: event.tag,
-          value: event.value
+          value: event.value,
+          timestamp: event.timestamp
         }
       } else if (event.type === 'list') {
         networkPayload = {
           type: 'list',
           tag: event.tag,
           method: event.method,
-          payload: event.payload
+          payload: event.payload,
+          timestamp: event.timestamp
         }
       }
       if (networkPayload && this.onTransmit) {
