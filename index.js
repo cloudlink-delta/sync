@@ -485,7 +485,7 @@
         )
         return false // Return false on failure
       }
-      const target_list = getTarget(target_id, list_name)
+      const target_list = getTarget(target_id, list_name, 'list')
       if (!target_list) {
         console.warn(
           `[CLΔ Sync] List "${list_name}" not found on target "${target_id}"`
