@@ -152,10 +152,10 @@
   }
 
   // --- Getters/Setters ---
-  function getTarget (target_id, name) {
+  function getTarget (target_id, name, type = '') {
     const target = vm.runtime.getTargetById(target_id)
     if (!target) return undefined
-    const variable = Object.values(target.variables).find(v => v.name === name)
+    const variable = Object.values(target.variables).find(v => v.name === name && v.type === type)
     return variable
   }
   function setVariableTarget (target_id, target_variable, value) {
@@ -1009,7 +1009,7 @@
       } else {
         mcast_target_id = util.target.id
       }
-      const mcast_target_list = getTarget(mcast_target_id, listName)
+      const mcast_target_list = getTarget(mcast_target_id, listName, 'list')
       if (!mcast_target_list) {
         console.warn(
           `Multicast target list "${listName}" not found in ${mcast_scope} scope for target ${mcast_target_id}`
@@ -1056,7 +1056,7 @@
       } else {
         mcast_target_id = util.target.id
       }
-      const mcast_target_list = getTarget(mcast_target_id, listName)
+      const mcast_target_list = getTarget(mcast_target_id, listName, 'list')
       if (!mcast_target_list) {
         console.warn(
           `Multicast target list "${listName}" not found in ${mcast_scope} scope for target ${mcast_target_id}`
