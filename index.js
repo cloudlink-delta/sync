@@ -295,7 +295,7 @@
       if (now - this.lastProcessedFrameTime > this.idleTimeout) {
         // We are idle. Check if there's anything to reset.
         if (this.eventStack.length > 1 || this.timeAccumulator > 0) {
-          if (!this.lastCheckIdle) 
+          if (!this.lastCheckIdle)
             console.log(
               '[CLΔ Sync] Idling. Resetting event stack and accumulator.'
             )
@@ -552,7 +552,9 @@
       } catch (e) {
         // This might fail if the target/var was deleted, but healthCheck
         // should have caught it. Still, good to be safe.
-        console.warn(`[CLΔ Sync] Error while un-proxying tag "${tag}": ${e.message}`)
+        console.warn(
+          `[CLΔ Sync] Error while un-proxying tag "${tag}": ${e.message}`
+        )
       }
 
       // Now, remove it from internal tracking
@@ -608,7 +610,9 @@
         return
       }
       if (priority !== 'local' && priority !== 'network') {
-        console.warn(`[CLΔ Sync] Rollback priority must be 'local' or 'network'.`)
+        console.warn(
+          `[CLΔ Sync] Rollback priority must be 'local' or 'network'.`
+        )
         return
       }
       const frameIndex = this.eventStack.length - 1 - n
@@ -680,27 +684,30 @@
       }
 
       // 4. --- De-duplication Check ---
-      if (lastState) { // Only check if a 'lastState' exists
+      if (lastState) {
+        // Only check if a 'lastState' exists
         switch (type) {
           case 'set':
             // Compare the new array to the last sent array
-            if (payload.length === lastState.length &&
-                payload.every((val, index) => val === lastState[index])) {
-              return; // The lists are identical, do not send.
+            if (
+              payload.length === lastState.length &&
+              payload.every((val, index) => val === lastState[index])
+            ) {
+              return // The lists are identical, do not send.
             }
-            break;
+            break
           case 'length':
             // Check if the length actually changed
             if (payload === lastState.length) {
-              return; // Length is the same, do not send.
+              return // Length is the same, do not send.
             }
-            break;
+            break
           case 'replace':
             // Check if the value at the index actually changed
             if (lastState[payload.property] === payload.value) {
-              return; // The value is the same, do not send.
+              return // The value is the same, do not send.
             }
-            break;
+            break
         }
       }
 
@@ -805,68 +812,35 @@
         blockIconURI: blockIcon,
         color1: '#0F7EBD',
         blocks: [
-          opcodes.label('Tags'),
+          opcodes.label('Sync Tags'),
           opcodes.boolean('isTagInUse', 'is tag [TAG] in use?', {
             TAG: args.string('network tag')
           }),
           opcodes.reporter('getTagBinding', 'tag [TAG] currently bound to', {
             TAG: args.string('network tag')
           }),
-          opcodes.separator(),
-          opcodes.label('Broadcast'),
-          opcodes.boolean(
-            'doBroadcast',
-            '[MODE] broadcast of [TYPE] [VAR] in channel [CHANNEL] with tag [TAG]',
-            {
-              MODE: args.string('enable', { menu: 'mode' }),
-              TYPE: args.string('global variable', { menu: 'type' }),
-              VAR: args.string('my variable'),
-              CHANNEL: args.string('default'),
-              TAG: args.string('network tag')
-            }
-          ),
           opcodes.boolean(
             'checkBroadcast',
-            'is [TYPE] [VAR] broadcasting in channel [CHANNEL] with tag [TAG]?',
+            'is tag [TAG] broadcasting in channel [CHANNEL]?',
             {
-              TYPE: args.string('global variable', { menu: 'type' }),
-              VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
-              TAG: args.string('network tag')
-            }
-          ),
-          opcodes.separator(),
-          opcodes.label('Multicast'),
-          opcodes.boolean(
-            'doMulticast',
-            '[MODE] multicast of [TYPE] [VAR] in channel [CHANNEL] with peers in list [LIST] with tag [TAG]',
-            {
-              MODE: args.string('enable', { menu: 'mode' }),
-              TYPE: args.string('global variable', { menu: 'type' }),
-              VAR: args.string('my variable'),
-              CHANNEL: args.string('default'),
-              LIST: args.string('my list'),
               TAG: args.string('network tag')
             }
           ),
           opcodes.boolean(
             'checkMulticast',
-            'is [TYPE] [VAR] multicasting to peers in list [LIST] in channel [CHANNEL] with tag [TAG]?',
+            'is tag [TAG] multicasting to peers in [MCAST] list [LIST] in channel [CHANNEL]?',
             {
-              TYPE: args.string('global variable', { menu: 'type' }),
-              VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
-              LIST: args.string('my list'),
+              MCAST: args.string('global', { menu: 'mcast' }),
+              LIST: args.string('my peer list'),
               TAG: args.string('network tag')
             }
           ),
-          opcodes.separator(),
-          opcodes.label('Unicast'),
           opcodes.boolean(
-            'doUnicast',
-            '[MODE] unicast of [TYPE] [VAR] with [PEER] in channel [CHANNEL] with tag [TAG]',
+            'checkUnicast',
+            'is tag [TAG] unicasting with [PEER] in channel [CHANNEL]?',
             {
-              MODE: args.string('enable', { menu: 'mode' }),
               TYPE: args.string('global variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
@@ -874,10 +848,37 @@
               TAG: args.string('network tag')
             }
           ),
+          opcodes.separator(),
+          opcodes.label('Sync Commands'),
           opcodes.boolean(
-            'checkUnicast',
-            'is [TYPE] [VAR] unicasting with [PEER] in channel [CHANNEL] with tag [TAG]?',
+            'doBroadcast',
+            '[MODE] broadcast of [TYPE] [VAR] in channel [CHANNEL] and assign it as tag [TAG]',
             {
+              MODE: args.string('enable', { menu: 'mode' }),
+              TYPE: args.string('global variable', { menu: 'type' }),
+              VAR: args.string('my variable'),
+              CHANNEL: args.string('default'),
+              TAG: args.string('network tag')
+            }
+          ),
+          opcodes.boolean(
+            'doMulticast',
+            '[MODE] multicast of [TYPE] [VAR] in channel [CHANNEL] with peers in [MCAST] list [LIST] and assign it as tag [TAG]',
+            {
+              MODE: args.string('enable', { menu: 'mode' }),
+              TYPE: args.string('global variable', { menu: 'type' }),
+              MCAST: args.string('global', { menu: 'mcast' }),
+              VAR: args.string('my variable'),
+              CHANNEL: args.string('default'),
+              LIST: args.string('my peer list'),
+              TAG: args.string('network tag')
+            }
+          ),
+          opcodes.boolean(
+            'doUnicast',
+            '[MODE] unicast of [TYPE] [VAR] with [PEER] in channel [CHANNEL] and assign it as tag [TAG]',
+            {
+              MODE: args.string('enable', { menu: 'mode' }),
               TYPE: args.string('global variable', { menu: 'type' }),
               VAR: args.string('my variable'),
               CHANNEL: args.string('default'),
@@ -887,6 +888,9 @@
           )
         ],
         menus: {
+          mcast: {
+            items: [Scratch.translate('global'), Scratch.translate('local')]
+          },
           mode: {
             items: [Scratch.translate('disable'), Scratch.translate('enable')]
           },
@@ -894,10 +898,8 @@
             items: [
               Scratch.translate('global variable'),
               Scratch.translate('local variable'),
-              Scratch.translate('clone variable'),
               Scratch.translate('global list'),
-              Scratch.translate('local list'),
-              Scratch.translate('clone list')
+              Scratch.translate('local list')
             ]
           }
         }
@@ -918,10 +920,8 @@
       if (target) {
         if (target.isStage) {
           scope = 'global'
-        } else if (target.isOriginal) {
-          scope = 'local'
         } else {
-          scope = 'clone'
+          scope = 'local'
         }
       }
       const type = tracker.type === 'var' ? 'variable' : 'list'
@@ -942,10 +942,8 @@
       let target_id
       if (scope === 'global') {
         target_id = vm.runtime.getTargetForStage().id
-      } else if (scope === 'local' || scope === 'clone') {
-        target_id = util.target.id
       } else {
-        return false
+        target_id = util.target.id
       }
 
       if (MODE === 'disable') {
@@ -973,7 +971,7 @@
       }
     }
 
-    checkBroadcast ({ TYPE, VAR, CHANNEL, TAG }) {
+    checkBroadcast ({ CHANNEL, TAG }) {
       if (!this.core) return false
       const tag = Scratch.Cast.toString(TAG)
       const channel = Scratch.Cast.toString(CHANNEL)
@@ -982,7 +980,7 @@
       return broadcast.channel === channel
     }
 
-    doMulticast ({ TYPE, MODE, VAR, CHANNEL, LIST, TAG }, util) {
+    doMulticast ({ TYPE, MODE, VAR, CHANNEL, LIST, TAG, MCAST }, util) {
       if (!this.core) return false
       // Sanitize all inputs
       TYPE = Scratch.Cast.toString(TYPE)
@@ -991,6 +989,7 @@
       const tag = Scratch.Cast.toString(TAG)
       const channel = Scratch.Cast.toString(CHANNEL)
       const listName = Scratch.Cast.toString(LIST)
+      const mcast_scope = Scratch.Cast.toString(MCAST)
 
       const parts = TYPE.split(' ')
       const scope = parts[0]
@@ -1000,9 +999,21 @@
       let target_id
       if (scope === 'global') {
         target_id = vm.runtime.getTargetForStage().id
-      } else if (scope === 'local' || scope === 'clone') {
-        target_id = util.target.id
       } else {
+        target_id = util.target.id
+      }
+
+      let mcast_target_id
+      if (mcast_scope == 'global') {
+        mcast_target_id = vm.runtime.getTargetForStage().id
+      } else {
+        mcast_target_id = util.target.id
+      }
+      const mcast_target_list = getTarget(mcast_target_id, listName)
+      if (!mcast_target_list) {
+        console.warn(
+          `Multicast target list "${listName}" not found in ${mcast_scope} scope for target ${mcast_target_id}`
+        )
         return false
       }
 
@@ -1019,7 +1030,7 @@
         }
 
         if (success) {
-          this.multicasts.set(tag, { channel: channel, list: listName })
+          this.multicasts.set(tag, { channel: channel, list: mcast_target_list.value })
           this.broadcasts.delete(tag)
           this.unicasts.delete(tag)
           return true
@@ -1029,16 +1040,39 @@
       }
     }
 
-    checkMulticast ({ TYPE, VAR, CHANNEL, LIST, TAG }) {
+    checkMulticast ({ CHANNEL, LIST, TAG, MCAST }) {
       if (!this.core) return false
       const tag = Scratch.Cast.toString(TAG)
       const channel = Scratch.Cast.toString(CHANNEL)
       const listName = Scratch.Cast.toString(LIST)
+      const mcast_scope = Scratch.Cast.toString(MCAST)
 
       const multicast = this.multicasts.get(tag)
       if (!multicast) return false
 
-      return multicast.channel === channel && multicast.list === listName
+      let mcast_target_id
+      if (mcast_scope == 'global') {
+        mcast_target_id = vm.runtime.getTargetForStage().id
+      } else {
+        mcast_target_id = util.target.id
+      }
+      const mcast_target_list = getTarget(mcast_target_id, listName)
+      if (!mcast_target_list) {
+        console.warn(
+          `Multicast target list "${listName}" not found in ${mcast_scope} scope for target ${mcast_target_id}`
+        )
+        return false
+      }
+
+      if (!multicast.channel === channel) return false
+
+      // compare contents of lists
+      if (multicast.list.length !== mcast_target_list.value.length) return false
+      for (let i = 0; i < multicast.value.length; i++) {
+        if (multicast.list[i] !== mcast_target_list.value[i]) return false
+      }
+
+      return true
     }
 
     doUnicast ({ TYPE, MODE, VAR, PEER, CHANNEL, TAG }, util) {
@@ -1059,10 +1093,8 @@
       let target_id
       if (scope === 'global') {
         target_id = vm.runtime.getTargetForStage().id
-      } else if (scope === 'local' || scope === 'clone') {
-        target_id = util.target.id
       } else {
-        return false
+        target_id = util.target.id
       }
 
       if (MODE === 'disable') {
@@ -1088,7 +1120,7 @@
       }
     }
 
-    checkUnicast ({ TYPE, VAR, PEER, CHANNEL, TAG }) {
+    checkUnicast ({ PEER, CHANNEL, TAG }) {
       if (!this.core) return false
       const tag = Scratch.Cast.toString(TAG)
       const channel = Scratch.Cast.toString(CHANNEL)
