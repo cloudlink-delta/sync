@@ -522,14 +522,47 @@
     removeNetworked (tag) {
       const tracker = this.tagMap.get(tag)
       if (!tracker) return false
+
+      try {
+        if (tracker.type === 'var') {
+          // It's a variable. Re-create a plain variable object
+          // and replace the proxy in the VM.
+          const plainVar = {
+            id: tracker.id,
+            name: tracker.name,
+            type: tracker.proxy.type, // e.g., "" or "broadcast_msg"
+            value: tracker.proxy.value, // Get the current value
+            isCloud: tracker.proxy.isCloud || false
+            // Note: No 'bless' property, so it's not a proxy
+          }
+          // Set the new plain object in the VM
+          setVariableTarget(tracker.target_id, { id: tracker.id }, plainVar)
+        } else if (tracker.type === 'list') {
+          // It's a list. Get the parent list object.
+          const parentList = tracker.parentList
+          if (parentList) {
+            // Create a new, non-proxied array from the proxy's current state
+            const plainArray = [...tracker.proxy]
+            // Set this new plain array back into the parent list object
+            setListValueTarget(tracker.target_id, parentList, plainArray)
+          }
+        }
+      } catch (e) {
+        // This might fail if the target/var was deleted, but healthCheck
+        // should have caught it. Still, good to be safe.
+        console.warn(`[CLΔ Sync] Error while un-proxying tag "${tag}": ${e.message}`)
+      }
+
+      // Now, remove it from internal tracking
       this.tagMap.delete(tag)
       const varMap = this.tracker.get(tracker.target_id)
       if (varMap) {
         varMap.delete(tracker.id)
-        console.log(`[CLΔ Sync] Disabled sync for tag "${tag}"`)
+        console.log(`[CLΔ Sync] Disabled sync and un-proxied tag "${tag}"`)
         return true
       }
-      return false
+
+      return false // varMap wasn't found, which is strange but handled.
     }
 
     // --- Public API: Receiving Network Updates ---
