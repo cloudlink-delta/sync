@@ -371,14 +371,14 @@
         const target = vm.runtime.getTargetById(target_id)
         if (!target) {
           console.log(
-            `[CLΔ Sync] Networked target ${target_id} was deleted. Removing trackers...`
+            `[CLΔ Sync] Networked target ${target_id} was deleted. Removing trackers.`
           )
           for (const tracker_elem of varMap.values()) {
             console.log(`  > Removing tag: ${tracker_elem.tag}`)
             this.tagMap.delete(tracker_elem.tag)
           }
           this.tracker.delete(target_id)
-          continue
+          continuelastProcessedFrameTime
         }
         for (const [var_id, tracker_elem] of varMap.entries()) {
           const variable = target.variables[var_id]
@@ -392,9 +392,6 @@
           }
           if (tracker_elem.type === 'list') {
             if (!variable.value.hasOwnProperty('bless')) {
-              console.log(
-                `[CLΔ Sync] Networked list "${tracker_elem.tag}" (ID: ${var_id}) was reset. Re-blessing.`
-              )
               this.rebless_list(target_id, var_id)
             }
           }
