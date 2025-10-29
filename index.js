@@ -471,7 +471,8 @@
         target_id: target_id,
         current: false,
         proxy: varProxy,
-        tag: tag
+        tag: tag,
+        lastKnownState: target_variable.value
       }
       this.tracker.get(target_id).set(target_variable.id, tracker_elem)
       this.tagMap.set(tag, tracker_elem)
@@ -512,7 +513,8 @@
         last: false,
         proxy: listProxy,
         parentList: target_list,
-        tag: tag
+        tag: tag,
+        lastKnownState: [...target_list.value]
       }
       this.tracker.get(target_id).set(target_list.id, tracker_elem)
       this.tagMap.set(tag, tracker_elem)
@@ -638,6 +640,8 @@
     _handleListUpdate (target_id, target_list, tag, property, value) {
       const tracker_elem = this.tracker.get(target_id).get(target_list.id)
       let source = 'local'
+
+      // 1. Feedback loop prevention
       if (tracker_elem.last) {
         tracker_elem.last = false
         tracker_elem.current = true
@@ -647,21 +651,64 @@
         source = 'network'
       }
       if (source === 'network') return
+
+      // 2. Get old state for comparison
+      const lastState = tracker_elem.lastKnownState
+
+      // 3. Determine event type and payload
       let type
       let payload
+      // We create a snapshot of the new state *now*
+      // 'target_list.value' is the proxy, and spreading it creates
+      // a new, non-proxied array with the *current* data.
+      const newState = [...target_list.value]
+
       if (property === '_monitorUpToDate') {
         type = 'set'
-        payload = [...target_list.value]
+        payload = newState
       } else if (property === 'length') {
         type = 'length'
-        payload = value
+        payload = value // This is the new length
       } else if (!isNaN(property)) {
         type = 'replace'
         payload = { property: property, value: value }
       } else {
+        // Other operations (like push, pop) don't have a clean property
+        // We will treat them as a 'set'
         type = 'set'
-        payload = [...target_list.value]
+        payload = newState
       }
+
+      // 4. --- De-duplication Check ---
+      if (lastState) { // Only check if a 'lastState' exists
+        switch (type) {
+          case 'set':
+            // Compare the new array to the last sent array
+            if (payload.length === lastState.length &&
+                payload.every((val, index) => val === lastState[index])) {
+              return; // The lists are identical, do not send.
+            }
+            break;
+          case 'length':
+            // Check if the length actually changed
+            if (payload === lastState.length) {
+              return; // Length is the same, do not send.
+            }
+            break;
+          case 'replace':
+            // Check if the value at the index actually changed
+            if (lastState[payload.property] === payload.value) {
+              return; // The value is the same, do not send.
+            }
+            break;
+        }
+      }
+
+      // 5. Update the 'lastKnownState' to this new state
+      // This ensures we don't send this update again until it changes
+      tracker_elem.lastKnownState = newState
+
+      // 6. Push the change to the frame stack
       this.pushListEventToFrame(
         target_id,
         target_list,
@@ -671,14 +718,28 @@
         payload
       )
     }
+
     _handleVarUpdate (target_id, target_variable, tag, value) {
       const tracker_elem = this.tracker.get(target_id).get(target_variable.id)
       let source = 'local'
+
+      // 1. Feedback loop prevention
       if (tracker_elem.current) {
         tracker_elem.current = false
         source = 'network'
       }
       if (source === 'network') return
+
+      // 2. --- De-duplication Check ---
+      // Compare the new value to the last value we sent
+      if (tracker_elem.lastKnownState === value) {
+        return // Value has not changed, do not send.
+      }
+
+      // 3. Update the 'lastKnownState' to this new value
+      tracker_elem.lastKnownState = value
+
+      // 4. Push the change to the frame stack
       this.pushVarEventToFrame(target_id, target_variable, 'local', tag, value)
     }
   }
