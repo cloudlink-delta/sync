@@ -781,9 +781,19 @@
 
     handleReceive (message) {
       const payload = message.payload ? message.payload : message
-      if (!payload || !payload.tag || !payload.type) {
+      if (!payload || !payload.tag || !payload.type || !payload.timestamp) {
         return
       }
+
+      // Don't process messages older than 1 second ("from the past" clock skew)
+      if (Date.now() - payload.timestamp > 1000) {
+        return
+      }
+      // Don't process messages newer than half a second ("from the future" clock skew)
+      if (Date.now() - payload.timestamp < -500) {
+        return
+      }
+      
       if (payload.type === 'var') {
         this.netvars.updateProxyVariable(payload.tag, payload.value)
       } else if (payload.type === 'list') {
