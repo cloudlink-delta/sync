@@ -194,7 +194,6 @@
       this.timeAccumulator = 0
       this.lastProcessedFrameTime = Date.now()
       this.idleTimeout = 1000 // 1 second
-      this.lastCheckIdle = false
     }
 
     // --- Frame Stack & Event Pushers ---
@@ -295,16 +294,11 @@
       if (now - this.lastProcessedFrameTime > this.idleTimeout) {
         // We are idle. Check if there's anything to reset.
         if (this.eventStack.length > 1 || this.timeAccumulator > 0) {
-          if (!this.lastCheckIdle)
-            console.log(
-              '[CLΔ Sync] Idling. Resetting event stack and accumulator.'
-            )
           this.eventStack = [[]]
           this.timeAccumulator = 0
         }
         // Reset the idle timer to prevent this from logging every tick
         this.lastProcessedFrameTime = now
-        this.lastCheckIdle = true
       }
 
       // --- 4. Batch Processing Check ---
@@ -326,11 +320,9 @@
         return
       }
 
-      this.lastCheckIdle = false
-
       // --- We have events, so we are NOT idle ---
       console.log(
-        `[CLΔ Sync] Begin processing frame ${frameIndex} (events: ${frameToProcess.length})...`
+        `[CLΔ Sync] Processing frame: ${frameIndex} events: ${frameToProcess.length}`
       )
 
       // We processed a non-empty frame, so reset the idle timer
