@@ -1030,7 +1030,7 @@
         }
 
         if (success) {
-          this.multicasts.set(tag, { channel: channel, list: mcast_target_list.value })
+          this.multicasts.set(tag, { channel: channel, target: mcast_target_id, list: mcast_target_list.id })
           this.broadcasts.delete(tag)
           this.unicasts.delete(tag)
           return true
@@ -1064,15 +1064,7 @@
         return false
       }
 
-      if (!multicast.channel === channel) return false
-
-      // compare contents of lists
-      if (multicast.list.length !== mcast_target_list.value.length) return false
-      for (let i = 0; i < multicast.value.length; i++) {
-        if (multicast.list[i] !== mcast_target_list.value[i]) return false
-      }
-
-      return true
+      return multicast.channel === channel && multicast.target === mcast_target_id && multicast.list === mcast_target_list.id
     }
 
     doUnicast ({ TYPE, MODE, VAR, PEER, CHANNEL, TAG }, util) {
