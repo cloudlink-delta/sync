@@ -297,7 +297,7 @@
           this.eventStack = [[]]
           this.timeAccumulator = 0
         }
-        // Reset the idle timer to prevent this from logging every tick
+        // Reset the idle timer to prevent this from running every tick
         this.lastProcessedFrameTime = now
       }
 
