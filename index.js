@@ -377,9 +377,6 @@
 
       for (const timestamp of frameKeys) {
         const frame = this.eventFrames.get(timestamp)
-        console.log(
-          `[CLΔ Sync] Processing frame ${timestamp} (events: ${frame.length})...`
-        )
         this.processFrame(frame)
         this.eventFrames.delete(timestamp)
       }
@@ -405,21 +402,9 @@
       for (const event of frame) {
         const tracker_elem = this.tagMap.get(event.tag)
         if (!tracker_elem) continue
-
         if (event.source === 'local') {
-          // --- De-duplicate local event *just before* sending ---
-          if (event.type === 'var') {
-            // Note: lastKnownState was already set in _handleVarUpdate
-            // We just check it here.
-            if (tracker_elem.lastKnownState === event.value) {
-              continue // Skip redundant send
-            }
-          } else if (event.type === 'list') {
-            // List de-duplication already happened in _handleListUpdate
-          }
           this.transmitEvent(event)
         } else if (event.source === 'network') {
-          // --- Apply network event ---
           if (event.type === 'var') {
             this._applyNetworkVar(event.tag, event.value)
           } else if (event.type === 'list') {
@@ -958,33 +943,13 @@
       }
     }
 
-    handleSyncVar (packet, fromPeerId) {
+    handleSyncVar (packet, _) {
       const { id, payload, timestamp } = packet
-
-      // Don't process messages older than 1 second ("from the past" clock skew)
-      if (Date.now() - timestamp > 1000) {
-        return
-      }
-      // Don't process messages newer than half a second ("from the future" clock skew)
-      if (Date.now() - timestamp < -500) {
-        return
-      }
-
       this.netvars.updateProxyVariable(id, payload, timestamp)
     }
 
-    handleSyncList (packet, fromPeerId) {
+    handleSyncList (packet, _) {
       const { id, method, payload, timestamp } = packet
-
-      // Don't process messages older than 1 second ("from the past" clock skew)
-      if (Date.now() - timestamp > 1000) {
-        return
-      }
-      // Don't process messages newer than half a second ("from the future" clock skew)
-      if (Date.now() - timestamp < -500) {
-        return
-      }
-
       this.netvars.updateProxyArray(id, method, payload, timestamp)
     }
 
