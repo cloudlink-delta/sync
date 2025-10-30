@@ -117,6 +117,14 @@
       ...options
     }),
 
+    hat: (opcode, text, options = {}) => ({
+      opcode,
+      blockType: Scratch.BlockType.HAT,
+      text: Scratch.translate(text),
+      isEdgeActivated: false,
+      ...options
+    }),
+
     button: (text, func, options = {}) => ({
       blockType: Scratch.BlockType.BUTTON,
       text: Scratch.translate(text),
@@ -155,7 +163,9 @@
   function getTarget (target_id, name, type = '') {
     const target = vm.runtime.getTargetById(target_id)
     if (!target) return undefined
-    const variable = Object.values(target.variables).find(v => v.name === name && v.type === type)
+    const variable = Object.values(target.variables).find(
+      v => v.name === name && v.type === type
+    )
     return variable
   }
   function setVariableTarget (target_id, target_variable, value) {
@@ -178,29 +188,93 @@
 
     Copyright (C) 2025 Mike J. Renaker "MikeDEV".
   */
+  /*
+    Networked Variables Helper Class
+    (Uses a dynamic, lowest-RTT peer for time synchronization)
+  */
   class NetworkedVariables {
     /**
-     * @param {number} [retainedFrames=60] - The number of event frames to keep in memory.
-     * @param {number} [updatesPerSecond=10] - The number of batches to process per second.
+     * @param {number} [maxFrames=30] - The max number of frames to keep in history.
+     * @param {number} [frameInterval=100] - The duration of one frame in ms (100ms = 10fps).
      */
-    constructor (retainedFrames = 60, updatesPerSecond = 10) {
+    constructor (maxFrames = 30, frameInterval = 100) {
       this.onTransmit = null
       this.tracker = new Map()
       this.tagMap = new Map()
-      this.eventStack = [[]]
-      this.retainedFrames = retainedFrames
-      this.lastFrameTime = Date.now()
-      this.batchInterval = 1000 / updatesPerSecond
-      this.timeAccumulator = 0
-      this.lastProcessedFrameTime = Date.now()
-      this.idleTimeout = 1000 // 1 second
+
+      /**
+       * The new N-size stack.
+       * @type {Map<number, Array<Object>>}
+       */
+      this.eventFrames = new Map()
+
+      this.maxFrames = maxFrames
+      this.frameInterval = frameInterval
+
+      // --- References to the Core ---
+      this.core = null
+    }
+
+    /**
+     * Provides the NetworkedVariables class with a reference to the Core.
+     * @param {object} core - The CLΔ Core instance.
+     */
+    setCore (core) {
+      this.core = core
+    }
+
+    /**
+     * Gets the "true" synchronized time by finding the peer with the
+     * lowest RTT and using their clock offset.
+     * @returns {number} A synchronized timestamp.
+     * @private
+     */
+    getSynchronizedTime () {
+      if (
+        !this.core ||
+        !this.core.peer ||
+        this.core.dataConnections.size === 0
+      ) {
+        return Date.now() // Fallback to local time
+      }
+
+      let bestOffset = 0
+      let lowestRtt = Infinity
+
+      // If we are connected to ourself (e.g., in a solo lobby), use our own clock.
+      if (
+        this.core.dataConnections.has(this.core.peer.id) &&
+        this.core.dataConnections.get(this.core.peer.id).open
+      ) {
+        return Date.now()
+      }
+
+      // Iterate all peers to find the best time source
+      for (const conn of this.core.dataConnections.values()) {
+        if (conn.open && conn.rtt < lowestRtt) {
+          lowestRtt = conn.rtt
+          bestOffset = conn.clockOffset
+        }
+      }
+
+      // +offset means peer's clock is ahead, so we add it to our time
+      return Date.now() + bestOffset
+    }
+
+    /**
+     * Calculates the "bucket" timestamp for a given time.
+     * @param {number} timestamp - The synchronized time.
+     * @returns {number} The floored frame key.
+     * @private
+     */
+    getFrameKey (timestamp) {
+      return Math.floor(timestamp / this.frameInterval) * this.frameInterval
     }
 
     // --- Frame Stack & Event Pushers ---
-    getCurrentFrame () {
-      return this.eventStack[this.eventStack.length - 1]
-    }
+
     pushVarEventToFrame (target_id, target_variable, event_source, tag, value) {
+      const syncTime = this.getSynchronizedTime()
       const event = {
         type: 'var',
         target_id,
@@ -209,10 +283,16 @@
         tag,
         value,
         source: event_source,
-        timestamp: Date.now()
+        timestamp: syncTime // Use synced time
       }
-      this.getCurrentFrame().push(event)
+
+      const frameKey = this.getFrameKey(event.timestamp)
+      if (!this.eventFrames.has(frameKey)) {
+        this.eventFrames.set(frameKey, [])
+      }
+      this.eventFrames.get(frameKey).push(event)
     }
+
     pushListEventToFrame (
       target_id,
       target_list,
@@ -221,6 +301,7 @@
       event_type,
       value
     ) {
+      const syncTime = this.getSynchronizedTime()
       const event = {
         type: 'list',
         target_id,
@@ -230,9 +311,14 @@
         method: event_type,
         payload: value,
         source: event_source,
-        timestamp: Date.now()
+        timestamp: syncTime // Use synced time
       }
-      this.getCurrentFrame().push(event)
+
+      const frameKey = this.getFrameKey(event.timestamp)
+      if (!this.eventFrames.has(frameKey)) {
+        this.eventFrames.set(frameKey, [])
+      }
+      this.eventFrames.get(frameKey).push(event)
     }
 
     // --- Proxy Creators ---
@@ -279,68 +365,67 @@
     }
 
     // --- Main Loop & Event Transmission ---
+
     update () {
       // --- 1. Variable Health Check ---
       this._healthCheck()
 
-      // --- 2. Time Calculation ---
-      const now = Date.now()
-      const deltaTime = now - this.lastFrameTime
-      this.lastFrameTime = now
-      this.timeAccumulator += deltaTime
+      // --- 2. Process Ready Frames ---
+      const now = this.getSynchronizedTime()
 
-      // --- 3. Idle Timeout Check (Runs every tick) ---
-      // Check if it's been over 1 second since we last processed a frame
-      if (now - this.lastProcessedFrameTime > this.idleTimeout) {
-        // We are idle. Check if there's anything to reset.
-        if (this.eventStack.length > 1 || this.timeAccumulator > 0) {
-          this.eventStack = [[]]
-          this.timeAccumulator = 0
-        }
-        // Reset the idle timer to prevent this from running every tick
-        this.lastProcessedFrameTime = now
+      const frameKeys = [...this.eventFrames.keys()].sort((a, b) => a - b)
+
+      for (const timestamp of frameKeys) {
+        const frame = this.eventFrames.get(timestamp)
+        console.log(
+          `[CLΔ Sync] Processing frame ${timestamp} (events: ${frame.length})...`
+        )
+        this.processFrame(frame)
+        this.eventFrames.delete(timestamp)
       }
 
-      // --- 4. Batch Processing Check ---
-      // If not enough time has passed for a batch, do nothing else.
-      if (this.timeAccumulator < this.batchInterval) {
-        return
+      // --- 3. Housekeeping: Enforce maxFrames ---
+      const keys = [...this.eventFrames.keys()].sort((a, b) => a - b)
+      while (keys.length > this.maxFrames) {
+        const oldestKey = keys.shift()
+        this.eventFrames.delete(oldestKey)
       }
+    }
 
-      // --- Time to process a batch ---
-      this.timeAccumulator = this.timeAccumulator % this.batchInterval
-      const frameToProcess = this.getCurrentFrame()
-      const frameIndex = this.eventStack.length - 1
+    /**
+     * Processes a single frame of events, applying network
+     * events and transmitting de-duplicated local events.
+     * @param {Array<Object>} frame - The array of events to process.
+     * @private
+     */
+    processFrame (frame) {
+      // Sort the frame by timestamp to ensure chronological order
+      frame.sort((a, b) => a.timestamp - b.timestamp)
 
-      // If no events happened in this batch, we can skip creating a new frame
-      if (frameToProcess.length === 0) {
-        // We log that we processed an empty frame, but we DON'T update
-        // this.lastProcessedFrameTime. This allows the idle timer to continue.
-        // console.log(`[CLΔ Sync] Processing frame ${frameIndex} (events: 0)...`);
-        return
-      }
+      for (const event of frame) {
+        const tracker_elem = this.tagMap.get(event.tag)
+        if (!tracker_elem) continue
 
-      // --- We have events, so we are NOT idle ---
-      console.log(
-        `[CLΔ Sync] Processing frame: ${frameIndex} events: ${frameToProcess.length}`
-      )
-
-      // We processed a non-empty frame, so reset the idle timer
-      this.lastProcessedFrameTime = now
-
-      // Add a new, empty frame for the *next* batch
-      this.eventStack.push([])
-
-      // --- 5. Process Events from the Completed Frame ---
-      for (const event of frameToProcess) {
         if (event.source === 'local') {
+          // --- De-duplicate local event *just before* sending ---
+          if (event.type === 'var') {
+            // Note: lastKnownState was already set in _handleVarUpdate
+            // We just check it here.
+            if (tracker_elem.lastKnownState === event.value) {
+              continue // Skip redundant send
+            }
+          } else if (event.type === 'list') {
+            // List de-duplication already happened in _handleListUpdate
+          }
           this.transmitEvent(event)
+        } else if (event.source === 'network') {
+          // --- Apply network event ---
+          if (event.type === 'var') {
+            this._applyNetworkVar(event.tag, event.value)
+          } else if (event.type === 'list') {
+            this._applyNetworkList(event.tag, event.method, event.payload)
+          }
         }
-      }
-
-      // --- 6. Housekeeping: Drop Old Frames ---
-      while (this.eventStack.length > this.retainedFrames) {
-        this.eventStack.shift()
       }
     }
 
@@ -380,7 +465,7 @@
             this.tagMap.delete(tracker_elem.tag)
           }
           this.tracker.delete(target_id)
-          continuelastProcessedFrameTime
+          continue
         }
         for (const [var_id, tracker_elem] of varMap.entries()) {
           const variable = target.variables[var_id]
@@ -427,9 +512,6 @@
     }
 
     // --- Public API: Registration ---
-    /**
-     * @returns {boolean} - True on success, false on failure.
-     */
     makeNetworkedVariable (target_id, variable_name, tag) {
       if (this.tagMap.has(tag)) {
         const existing = this.tagMap.get(tag)
@@ -439,18 +521,17 @@
         ) {
           return true // Already registered
         }
-        // Use console.warn instead of throw
         console.warn(
           `[CLΔ Sync] Tag "${tag}" is already in use for a different variable. Tags must be unique.`
         )
-        return false // Return false on failure
+        return false
       }
       const target_variable = getTarget(target_id, variable_name)
       if (!target_variable) {
         console.warn(
           `[CLΔ Sync] Variable "${variable_name}" not found on target "${target_id}"`
         )
-        return false // Return false on failure
+        return false
       }
       const varProxy = this.createVariableProxy(target_id, target_variable, tag)
       setVariableTarget(target_id, target_variable, varProxy)
@@ -467,30 +548,25 @@
       }
       this.tracker.get(target_id).set(target_variable.id, tracker_elem)
       this.tagMap.set(tag, tracker_elem)
-      return true // Return true on success
+      return true
     }
-
-    /**
-     * @returns {boolean} - True on success, false on failure.
-     */
     makeNetworkedList (target_id, list_name, tag) {
       if (this.tagMap.has(tag)) {
         const existing = this.tagMap.get(tag)
         if (existing.name === list_name && existing.target_id === target_id) {
-          return true // Already registered
+          return true
         }
-        // Use console.warn instead of throw
         console.warn(
           `[CLΔ Sync] Tag "${tag}" is already in use for a different list. Tags must be unique.`
         )
-        return false // Return false on failure
+        return false
       }
       const target_list = getTarget(target_id, list_name, 'list')
       if (!target_list) {
         console.warn(
           `[CLΔ Sync] List "${list_name}" not found on target "${target_id}"`
         )
-        return false // Return false on failure
+        return false
       }
       const listProxy = this.createArrayProxy(target_id, target_list, tag)
       setListValueTarget(target_id, target_list, listProxy)
@@ -509,46 +585,33 @@
       }
       this.tracker.get(target_id).set(target_list.id, tracker_elem)
       this.tagMap.set(tag, tracker_elem)
-      return true // Return true on success
+      return true
     }
-
     removeNetworked (tag) {
       const tracker = this.tagMap.get(tag)
       if (!tracker) return false
-
       try {
         if (tracker.type === 'var') {
-          // It's a variable. Re-create a plain variable object
-          // and replace the proxy in the VM.
           const plainVar = {
             id: tracker.id,
             name: tracker.name,
-            type: tracker.proxy.type, // e.g., "" or "broadcast_msg"
-            value: tracker.proxy.value, // Get the current value
+            type: tracker.proxy.type,
+            value: tracker.proxy.value,
             isCloud: tracker.proxy.isCloud || false
-            // Note: No 'bless' property, so it's not a proxy
           }
-          // Set the new plain object in the VM
           setVariableTarget(tracker.target_id, { id: tracker.id }, plainVar)
         } else if (tracker.type === 'list') {
-          // It's a list. Get the parent list object.
           const parentList = tracker.parentList
           if (parentList) {
-            // Create a new, non-proxied array from the proxy's current state
             const plainArray = [...tracker.proxy]
-            // Set this new plain array back into the parent list object
             setListValueTarget(tracker.target_id, parentList, plainArray)
           }
         }
       } catch (e) {
-        // This might fail if the target/var was deleted, but healthCheck
-        // should have caught it. Still, good to be safe.
         console.warn(
           `[CLΔ Sync] Error while un-proxying tag "${tag}": ${e.message}`
         )
       }
-
-      // Now, remove it from internal tracking
       this.tagMap.delete(tag)
       const varMap = this.tracker.get(tracker.target_id)
       if (varMap) {
@@ -556,24 +619,79 @@
         console.log(`[CLΔ Sync] Disabled sync and un-proxied tag "${tag}"`)
         return true
       }
-
-      return false // varMap wasn't found, which is strange but handled.
+      return false
     }
 
     // --- Public API: Receiving Network Updates ---
-    updateProxyVariable (tag, value) {
+
+    updateProxyVariable (tag, value, timestamp) {
       const tracker_elem = this.tagMap.get(tag)
       if (!tracker_elem) return
-      if (tracker_elem.type !== 'var') return
-      tracker_elem.current = true
+
+      const event = {
+        type: 'var',
+        target_id: tracker_elem.target_id,
+        id: tracker_elem.id,
+        name: tracker_elem.name,
+        tag: tag,
+        value: value,
+        source: 'network', // This is a network event
+        timestamp: timestamp
+      }
+
+      const frameKey = this.getFrameKey(event.timestamp)
+      if (!this.eventFrames.has(frameKey)) {
+        this.eventFrames.set(frameKey, [])
+      }
+      this.eventFrames.get(frameKey).push(event)
+    }
+
+    updateProxyArray (tag, method, payload, timestamp) {
+      const tracker_elem = this.tagMap.get(tag)
+      if (!tracker_elem) return
+
+      const event = {
+        type: 'list',
+        target_id: tracker_elem.target_id,
+        id: tracker_elem.id,
+        name: tracker_elem.name,
+        tag: tag,
+        method: method,
+        payload: payload,
+        source: 'network', // This is a network event
+        timestamp: timestamp
+      }
+
+      const frameKey = this.getFrameKey(event.timestamp)
+      if (!this.eventFrames.has(frameKey)) {
+        this.eventFrames.set(frameKey, [])
+      }
+      this.eventFrames.get(frameKey).push(event)
+    }
+
+    // --- Internal Handlers ---
+
+    /**
+     * Applies a network variable change with feedback prevention.
+     * @private
+     */
+    _applyNetworkVar (tag, value) {
+      const tracker_elem = this.tagMap.get(tag)
+      if (!tracker_elem) return
+      tracker_elem.current = true // Set mask
       tracker_elem.proxy.value = value
     }
-    updateProxyArray (tag, method, payload) {
+
+    /**
+     * Applies a network list change with feedback prevention.
+     * @private
+     */
+    _applyNetworkList (tag, method, payload) {
       const tracker_elem = this.tagMap.get(tag)
       if (!tracker_elem) return
-      if (tracker_elem.type !== 'list') return
       const proxy = tracker_elem.proxy
-      tracker_elem.current = true
+      tracker_elem.current = true // Set mask
+
       switch (method) {
         case 'reset':
         case 'set':
@@ -594,44 +712,6 @@
       }
     }
 
-    // --- Public API: Rollback ---
-    rollbackToFrame (n, priority) {
-      if (n <= 0) {
-        console.warn(`[CLΔ Sync] Rollback value must be > 0.`)
-        return
-      }
-      if (priority !== 'local' && priority !== 'network') {
-        console.warn(
-          `[CLΔ Sync] Rollback priority must be 'local' or 'network'.`
-        )
-        return
-      }
-      const frameIndex = this.eventStack.length - 1 - n
-      if (frameIndex < 0 || frameIndex >= this.eventStack.length) {
-        console.warn(
-          `[CLΔ Sync] Cannot roll back ${n} frames. Only ${
-            this.eventStack.length - 1
-          } processed frames are in history.`
-        )
-        return
-      }
-      const frame = this.eventStack[frameIndex]
-      console.log(
-        `[CLΔ Sync] Rolling back to frame ${n} (index ${frameIndex}) with ${priority} priority...`
-      )
-      for (const event of frame) {
-        if (event.source !== priority) {
-          continue
-        }
-        if (event.type === 'var') {
-          this.updateProxyVariable(event.tag, event.value)
-        } else if (event.type === 'list') {
-          this.updateProxyArray(event.tag, event.method, event.payload)
-        }
-      }
-    }
-
-    // --- Internal Handlers ---
     _handleListUpdate (target_id, target_list, tag, property, value) {
       const tracker_elem = this.tracker.get(target_id).get(target_list.id)
       let source = 'local'
@@ -653,9 +733,6 @@
       // 3. Determine event type and payload
       let type
       let payload
-      // We create a snapshot of the new state *now*
-      // 'target_list.value' is the proxy, and spreading it creates
-      // a new, non-proxied array with the *current* data.
       const newState = [...target_list.value]
 
       if (property === '_monitorUpToDate') {
@@ -663,47 +740,40 @@
         payload = newState
       } else if (property === 'length') {
         type = 'length'
-        payload = value // This is the new length
+        payload = value
       } else if (!isNaN(property)) {
         type = 'replace'
         payload = { property: property, value: value }
       } else {
-        // Other operations (like push, pop) don't have a clean property
-        // We will treat them as a 'set'
         type = 'set'
         payload = newState
       }
 
-      // 4. --- De-duplication Check ---
+      // 4. --- De-duplication Check (for local events) ---
       if (lastState) {
-        // Only check if a 'lastState' exists
         switch (type) {
           case 'set':
-            // Compare the new array to the last sent array
             if (
               payload.length === lastState.length &&
               payload.every((val, index) => val === lastState[index])
             ) {
-              return // The lists are identical, do not send.
+              return
             }
             break
           case 'length':
-            // Check if the length actually changed
             if (payload === lastState.length) {
-              return // Length is the same, do not send.
+              return
             }
             break
           case 'replace':
-            // Check if the value at the index actually changed
             if (lastState[payload.property] === payload.value) {
-              return // The value is the same, do not send.
+              return
             }
             break
         }
       }
 
-      // 5. Update the 'lastKnownState' to this new state
-      // This ensures we don't send this update again until it changes
+      // 5. Update the 'lastKnownState'
       tracker_elem.lastKnownState = newState
 
       // 6. Push the change to the frame stack
@@ -728,13 +798,12 @@
       }
       if (source === 'network') return
 
-      // 2. --- De-duplication Check ---
-      // Compare the new value to the last value we sent
+      // 2. --- De-duplication Check (for local events) ---
       if (tracker_elem.lastKnownState === value) {
-        return // Value has not changed, do not send.
+        return
       }
 
-      // 3. Update the 'lastKnownState' to this new value
+      // 3. Update the 'lastKnownState'
       tracker_elem.lastKnownState = value
 
       // 4. Push the change to the frame stack
@@ -744,65 +813,179 @@
 
   class CloudLinkDelta_Sync {
     constructor () {
+      this.id = 'sync' // used for registerPlugin in core
       this.netvars = new NetworkedVariables()
       this.netvars.onTransmit = payload => this.handleTransmit(payload)
       this.core = null
       this.broadcasts = new Map()
       this.multicasts = new Map()
       this.unicasts = new Map()
+
+      /**
+       * A map to store the 'resolve' functions for '...and wait' blocks.
+       * Maps: listenerId -> { peers: Set<string>, resolve: function }
+       * @type {Map<string, Object>}
+       */
+      this.ackListeners = new Map()
+
+      /**
+       * Stores the most recent G_MESH (global) broadcast received.
+       */
+      this.lastGlobalMesh = { bcast: '', origin: '' }
+
+      /**
+       * Stores the most recent P_MESH (private) broadcast received.
+       */
+      this.lastPrivateMesh = { bcast: '', origin: '' }
+    }
+
+    /**
+     * Waits for all threads spawned by startHats to complete.
+     * @param {Array<Object>} threads - The array of thread objects returned by startHats.
+     * @returns {Promise<void>} A promise that resolves when all threads are done.
+     * @private
+     */
+    async _awaitAllThreads (threads) {
+      if (!threads || threads.length === 0) {
+        return // Nothing to wait for
+      }
+
+      // 1. A helper function to wait for a *single* thread
+      const waitForThread = thread => {
+        return new Promise(resolve => {
+          // This function will poll the thread's status
+          const checkStatus = () => {
+            if (thread.status === 4) {
+              // 4 = STATUS_DONE
+              resolve()
+            } else {
+              // 0, 1, 2, or 3.
+              // Yield to the event loop and check again.
+              setTimeout(checkStatus, 0)
+            }
+          }
+          // Start the polling
+          checkStatus()
+        })
+      }
+
+      // 2. Create an array of "wait" promises, one for each thread
+      const waitPromises = threads.map(waitForThread)
+
+      // 3. Gather them and wait for *all* of them to complete
+      await Promise.all(waitPromises)
+    }
+
+    getOpcodes (_) {
+      const handlers = new Map()
+      // Register handlers for data sync opcodes
+      handlers.set('G_VAR', this.handleSyncVar)
+      handlers.set('P_VAR', this.handleSyncVar)
+      handlers.set('G_LIST', this.handleSyncList)
+      handlers.set('P_LIST', this.handleSyncList)
+
+      // Register handlers for mesh opcodes
+      handlers.set('G_MESH', this.handleMesh)
+      handlers.set('P_MESH', this.handleMesh)
+      return handlers
     }
 
     register (core) {
       this.core = core
-      core.onMessage = core.onMessage || {}
-      core.onMessage.sync = payload => this.handleReceive(payload)
+
+      // Inject core
+      this.netvars.setCore(core)
+
+      // Register this plugin with the Core's dispatcher
+      core.registerPlugin(this)
+
       if (!core.plugins.includes('sync')) {
         core.plugins.push('sync')
         console.log('CLΔ Sync plugin registered.')
       }
     }
 
-    handleTransmit (payload) {
-      if (!this.core || !this.core.send) {
-        return
+    handleTransmit (event) {
+      if (!this.core) return
+
+      const tag = event.tag
+      let packet
+
+      // 1. Build the packet based on the new schema
+      if (event.type === 'var') {
+        packet = {
+          // opcode: 'G_VAR' | 'P_VAR',
+          opcode:
+            this.broadcasts.has(tag) || this.multicasts.has(tag)
+              ? 'G_VAR'
+              : 'P_VAR',
+          payload: event.value,
+          id: event.tag,
+          timestamp: event.timestamp
+        }
+      } else if (event.type === 'list') {
+        packet = {
+          // opcode: 'G_LIST' | 'P_LIST',
+          opcode:
+            this.broadcasts.has(tag) || this.multicasts.has(tag)
+              ? 'G_LIST'
+              : 'P_LIST',
+          payload: event.payload,
+          id: event.tag,
+          method: event.method, // e.g., 'set', 'replace'
+          timestamp: event.timestamp
+        }
       }
-      const tag = payload.tag
+
+      if (!packet) return
+
+      // 2. Determine target and send
       if (this.broadcasts.has(tag)) {
-        const { channel } = this.broadcasts.get(tag)
-        this.core.send('broadcast', { channel: channel, payload: payload })
-      } else if (this.multicasts.has(tag)) {
-        const { channel, list } = this.multicasts.get(tag)
-        // TODO: Implement multicast send
+        packet.target = '*' // Broadcast
+        this.core._send(packet)
       } else if (this.unicasts.has(tag)) {
-        const { channel, peer } = this.unicasts.get(tag)
-        // TODO: Implement unicast send
+        packet.target = this.unicasts.get(tag).peer // Specific peer
+        this.core._send(packet)
+      } else if (this.multicasts.has(tag)) {
+        // Get list of peers and send multiple unicast packets
+        const _mc = this.multicasts.get(tag)
+        const [target, list] = [_mc.target, _mc.list]
+        const target_list = getTarget(target, list, 'list')
+        for (const peer in target_list.value) {
+          packet.target = peer
+          this.core._send(packet)
+        }
       }
     }
 
-    handleReceive (message) {
-      const payload = message.payload ? message.payload : message
-      if (!payload || !payload.tag || !payload.type || !payload.timestamp) {
-        return
-      }
+    handleSyncVar (packet, fromPeerId) {
+      const { id, payload, timestamp } = packet
 
       // Don't process messages older than 1 second ("from the past" clock skew)
-      if (Date.now() - payload.timestamp > 1000) {
+      if (Date.now() - timestamp > 1000) {
         return
       }
       // Don't process messages newer than half a second ("from the future" clock skew)
-      if (Date.now() - payload.timestamp < -500) {
+      if (Date.now() - timestamp < -500) {
         return
       }
-      
-      if (payload.type === 'var') {
-        this.netvars.updateProxyVariable(payload.tag, payload.value)
-      } else if (payload.type === 'list') {
-        this.netvars.updateProxyArray(
-          payload.tag,
-          payload.method,
-          payload.payload
-        )
+
+      this.netvars.updateProxyVariable(id, payload, timestamp)
+    }
+
+    handleSyncList (packet, fromPeerId) {
+      const { id, method, payload, timestamp } = packet
+
+      // Don't process messages older than 1 second ("from the past" clock skew)
+      if (Date.now() - timestamp > 1000) {
+        return
       }
+      // Don't process messages newer than half a second ("from the future" clock skew)
+      if (Date.now() - timestamp < -500) {
+        return
+      }
+
+      this.netvars.updateProxyArray(id, method, payload, timestamp)
     }
 
     getInfo () {
@@ -813,7 +996,59 @@
         blockIconURI: blockIcon,
         color1: '#0F7EBD',
         blocks: [
-          opcodes.label('Sync Tags'),
+          opcodes.label('Mesh'),
+          opcodes.hat(
+            'onGlobalBroadcast',
+            'when I receive broadcast [BCAST]',
+            {
+              arguments: {
+                BCAST: args.string('message'),
+              },
+              shouldRestartExistingThreads: true,
+            }
+          ),
+          opcodes.command(
+            'broadcastGlobally',
+            'broadcast [BCAST]',
+            {
+              BCAST: args.string('message')
+            }
+          ),
+          opcodes.command(
+            'broadcastGloballyAndWait',
+            'broadcast [BCAST] and wait',
+            {
+              BCAST: args.string('message')
+            }
+          ),
+          opcodes.hat(
+            'onPrivateBroadcast',
+            'when I receive broadcast [BCAST] from [PEER]', {
+              arguments: {
+                BCAST: args.string('message'),
+                PEER: args.string('B'),
+              },
+              shouldRestartExistingThreads: true,
+            }
+          ),
+          opcodes.command(
+            'broadcastPrivately',
+            'broadcast [BCAST] to [PEER]',
+            {
+              BCAST: args.string('message'),
+              PEER: args.string('B'),
+            }
+          ),
+          opcodes.command(
+            'broadcastPrivatelyAndWait',
+            'broadcast [BCAST] to [PEER] and wait',
+            {
+              BCAST: args.string('message'),
+              PEER: args.string('B'),
+            }
+          ),
+          opcodes.separator(),
+          opcodes.label('Network Tags'),
           opcodes.boolean('isTagInUse', 'is tag [TAG] in use?', {
             TAG: args.string('network tag')
           }),
@@ -850,7 +1085,7 @@
             }
           ),
           opcodes.separator(),
-          opcodes.label('Sync Commands'),
+          opcodes.label('Data Sync'),
           opcodes.boolean(
             'doBroadcast',
             '[MODE] broadcast of [TYPE] [VAR] in channel [CHANNEL] and assign it as tag [TAG]',
@@ -1031,7 +1266,11 @@
         }
 
         if (success) {
-          this.multicasts.set(tag, { channel: channel, target: mcast_target_id, list: mcast_target_list.id })
+          this.multicasts.set(tag, {
+            channel: channel,
+            target: mcast_target_id,
+            list: mcast_target_list.id
+          })
           this.broadcasts.delete(tag)
           this.unicasts.delete(tag)
           return true
@@ -1065,7 +1304,11 @@
         return false
       }
 
-      return multicast.channel === channel && multicast.target === mcast_target_id && multicast.list === mcast_target_list.id
+      return (
+        multicast.channel === channel &&
+        multicast.target === mcast_target_id &&
+        multicast.list === mcast_target_list.id
+      )
     }
 
     doUnicast ({ TYPE, MODE, VAR, PEER, CHANNEL, TAG }, util) {
@@ -1123,6 +1366,155 @@
       if (!unicast) return false
 
       return unicast.channel === channel && unicast.peer === peer
+    }
+
+    async handleMesh (packet, fromPeerId) {
+      const { opcode, payload, method, listener } = packet
+      
+      // An 'ack' is a reply to one of our '...and wait' blocks
+      if (method === 'ack') {
+        if (this.ackListeners.has(listener)) {
+          const waiter = this.ackListeners.get(listener)
+          waiter.peers.delete(fromPeerId) // Mark this peer as "done"
+          
+          if (waiter.peers.size === 0) {
+            waiter.resolve()
+            this.ackListeners.delete(listener)
+          }
+        }
+        return
+      }
+
+      // An empty or 'req' method is an incoming broadcast event
+      if (method === '' || method === 'req') {
+        const bcastName = payload
+        const origin = packet.origin || fromPeerId
+        let threads = []
+
+        if (opcode === 'G_MESH') {
+          this.lastGlobalMesh.bcast = bcastName
+          this.lastGlobalMesh.origin = origin
+          threads = Scratch.vm.runtime.startHats('cldeltasync_onGlobalBroadcast')
+        } else if (opcode === 'P_MESH') {
+          this.lastPrivateMesh.bcast = bcastName
+          this.lastPrivateMesh.origin = origin
+          threads = Scratch.vm.runtime.startHats('cldeltasync_onPrivateBroadcast')
+        }
+
+        // If it was a 'req', we must wait for threads, then send an 'ack'
+        if (method === 'req') {
+
+          // 1. Wait for all hat scripts to finish running
+          await this._awaitAllThreads(threads)
+
+          // 2. Now that they are done, send the 'ack' back
+          this.core._send({
+            opcode: opcode,
+            method: 'ack',
+            target: fromPeerId, // Send back *only* to the sender
+            listener: listener,
+            channel: 'default'
+          })
+        }
+      }
+    }
+
+    onGlobalBroadcast (args, util) {
+      // This checks if the hat's [BCAST] argument matches the received message
+      return (
+        Scratch.Cast.toString(args.BCAST) === this.lastGlobalMesh.bcast
+      )
+    }
+
+    onPrivateBroadcast (args, util) {
+      // This checks if the [BCAST] and [PEER] arguments match
+      return (
+        Scratch.Cast.toString(args.BCAST) === this.lastPrivateMesh.bcast &&
+        Scratch.Cast.toString(args.PEER) === this.lastPrivateMesh.origin
+      )
+    }
+
+    broadcastGlobally (args) {
+      if (!this.core) return
+
+      this.core._send({
+        opcode: 'G_MESH',
+        payload: Scratch.Cast.toString(args.BCAST),
+        method: '',
+        channel: 'default'
+      })
+    }
+
+    broadcastGloballyAndWait (args) {
+      if (!this.core || this.core.dataConnections.size === 0) return
+
+      const listenerId = crypto.randomUUID()
+      const packet = {
+        opcode: 'G_MESH',
+        payload: Scratch.Cast.toString(args.BCAST),
+        method: 'req',
+        listener: listenerId,
+        channel: 'default'
+      }
+
+      // We need to wait for *all* connected peers to 'ack'
+      const peersToWaitFor = new Set()
+      for (const conn of this.core.dataConnections.values()) {
+        if (conn.open) {
+          peersToWaitFor.add(conn.peer)
+        }
+      }
+      
+      if (peersToWaitFor.size === 0) return // No one to wait for
+
+      // Return a Promise that Scratch will wait for
+      return new Promise(resolve => {
+        this.ackListeners.set(listenerId, {
+          peers: peersToWaitFor,
+          resolve: resolve
+        })
+        this.core._send(packet)
+      })
+    }
+
+    broadcastPrivately (args) {
+      if (!this.core) return
+
+      this.core._send({
+        opcode: 'P_MESH',
+        payload: Scratch.Cast.toString(args.BCAST),
+        method: '',
+        target: Scratch.Cast.toString(args.PEER), // Unicast
+        channel: 'default'
+      })
+    }
+
+    broadcastPrivatelyAndWait (args) {
+      if (!this.core) return
+
+      const peerId = Scratch.Cast.toString(args.PEER)
+      if (!this.core.dataConnections.has(peerId)) return // Peer isn't connected
+
+      const listenerId = crypto.randomUUID()
+      const packet = {
+        opcode: 'P_MESH',
+        payload: Scratch.Cast.toString(args.BCAST),
+        method: 'req',
+        target: peerId,
+        listener: listenerId,
+        channel: 'default'
+      }
+
+      // We only need to wait for this one peer
+      const peersToWaitFor = new Set([peerId])
+
+      return new Promise(resolve => {
+        this.ackListeners.set(listenerId, {
+          peers: peersToWaitFor,
+          resolve: resolve
+        })
+        this.core._send(packet)
+      })
     }
   }
 
