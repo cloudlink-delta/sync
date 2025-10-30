@@ -1,4 +1,4 @@
-![CloudLink Delta](https://github.com/user-attachments/assets/aa2ac9e0-4187-44c4-84be-069242d2b6dc)
+![sync](https://github.com/user-attachments/assets/0cbe9b75-06f3-48ef-8ae2-7ee4cfbc0c0e)
 
 # CLΔ Sync plugin library.
 Plugin to enable list/variable synchronization between players for CLΔ Core. 
