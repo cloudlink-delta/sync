@@ -961,6 +961,11 @@
         blockIconURI: blockIcon,
         color1: '#0F7EBD',
         blocks: [
+          opcodes.button(
+            'View Documentation',
+            'openDocs',
+          ),
+          opcodes.separator(),
           opcodes.label('Mesh'),
           opcodes.hat(
             'onGlobalBroadcast',
@@ -1382,6 +1387,10 @@
           })
         }
       }
+    }
+
+    openDocs() {
+      window.open('https://docs.mikedev101.cc/extensions/delta/sync')
     }
 
     onGlobalBroadcast (args, util) {
