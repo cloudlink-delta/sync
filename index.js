@@ -1402,10 +1402,21 @@
 
     onPrivateBroadcast (args, util) {
       // This checks if the [BCAST] and [PEER] arguments match
-      return (
-        Scratch.Cast.toString(args.BCAST) === this.lastPrivateMesh.bcast &&
-        Scratch.Cast.toString(args.PEER) === this.lastPrivateMesh.origin
-      )
+      const bcastMatch =
+        Scratch.Cast.toString(args.BCAST) === this.lastPrivateMesh.bcast
+      if (!bcastMatch) return false
+
+      let peerId = Scratch.Cast.toString(args.PEER)
+      const originId = this.lastPrivateMesh.origin
+
+      // If remapper is active, the user might provide a username.
+      // The originId is always an instance ID.
+      // We need to resolve the user's input to an instance ID for comparison.
+      if (this.core && this.core.enableIdRemapper && this.core.idRemapper) {
+        const resolvedId = this.core.idRemapper().get(peerId)
+        if (resolvedId) peerId = resolvedId
+      }
+      return peerId === originId
     }
 
     broadcastGlobally (args) {
