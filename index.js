@@ -1250,7 +1250,7 @@
       }
     }
 
-    checkMulticast ({ CHANNEL, LIST, TAG, MCAST }) {
+    checkMulticast ({ CHANNEL, LIST, TAG, MCAST }, util) {
       if (!this.core) return false
       const tag = Scratch.Cast.toString(TAG)
       const channel = Scratch.Cast.toString(CHANNEL)
