@@ -929,15 +929,22 @@
         packet.target = '*' // Broadcast
         this.core._send(packet)
       } else if (this.unicasts.has(tag)) {
-        packet.target = this.unicasts.get(tag).peer // Specific peer
+        const peerId = Scratch.Cast.toString(this.unicasts.get(tag).peer).trim()
+        if (!peerId) return
+        packet.target = this.core.resolvePeerId(peerId) // Specific peer
+        if (this.core.maskedConnections.has(packet.target)) return
         this.core._send(packet)
       } else if (this.multicasts.has(tag)) {
         // Get list of peers and send multiple unicast packets
         const _mc = this.multicasts.get(tag)
-        const [target, list] = [_mc.target, _mc.list]
-        const target_list = getTarget(target, list, 'list')
-        for (const peer in target_list.value) {
-          packet.target = peer
+        const targetObj = Scratch.vm.runtime.getTargetById(_mc.target)
+        if (!targetObj || !targetObj.variables[_mc.list]) return
+        const target_list = targetObj.variables[_mc.list]
+        for (let peer of target_list.value) {
+          peer = Scratch.Cast.toString(peer).trim()
+          if (!peer) continue
+          packet.target = this.core.resolvePeerId(peer)
+          if (this.core.maskedConnections.has(packet.target)) continue
           this.core._send(packet)
         }
       }
@@ -1409,12 +1416,8 @@
       let peerId = Scratch.Cast.toString(args.PEER)
       const originId = this.lastPrivateMesh.origin
 
-      // If remapper is active, the user might provide a username.
-      // The originId is always an instance ID.
-      // We need to resolve the user's input to an instance ID for comparison.
-      if (this.core && this.core.enableIdRemapper && this.core.idRemapper) {
-        const resolvedId = this.core.idRemapper().get(peerId)
-        if (resolvedId) peerId = resolvedId
+      if (this.core) {
+        peerId = this.core.resolvePeerId(peerId)
       }
       return peerId === originId
     }
@@ -1445,12 +1448,15 @@
       // We need to wait for *all* connected peers to 'ack'
       const peersToWaitFor = new Set()
       for (const conn of this.core.dataConnections.values()) {
-        if (conn.open) {
+        if (conn.open && !this.core.maskedConnections.has(conn.peer)) {
           peersToWaitFor.add(conn.peer)
         }
       }
       
-      if (peersToWaitFor.size === 0) return // No one to wait for
+      if (peersToWaitFor.size === 0) {
+        this.core._send(packet)
+        return // No one to wait for
+      }
 
       // Return a Promise that Scratch will wait for
       return new Promise(resolve => {
@@ -1465,11 +1471,16 @@
     broadcastPrivately (args) {
       if (!this.core) return
 
+      const rawPeer = Scratch.Cast.toString(args.PEER).trim()
+      if (!rawPeer) return
+      const peerId = this.core.resolvePeerId(rawPeer)
+      if (!peerId || this.core.maskedConnections.has(peerId)) return
+
       this.core._send({
         opcode: 'P_MESH',
         payload: Scratch.Cast.toString(args.BCAST),
         method: '',
-        target: Scratch.Cast.toString(args.PEER), // Unicast
+        target: peerId, // Unicast
         channel: 'default'
       })
     }
@@ -1477,8 +1488,10 @@
     broadcastPrivatelyAndWait (args) {
       if (!this.core) return
 
-      const peerId = Scratch.Cast.toString(args.PEER)
-      if (!this.core.dataConnections.has(peerId)) return // Peer isn't connected
+      const rawPeer = Scratch.Cast.toString(args.PEER).trim()
+      if (!rawPeer) return
+      const peerId = this.core.resolvePeerId(rawPeer)
+      if (!peerId || this.core.maskedConnections.has(peerId)) return
 
       const listenerId = crypto.randomUUID()
       const packet = {
